@@ -1,0 +1,408 @@
+/* PDF Export Styles — Downtex */
+
+@page {
+  size: A4;
+  margin: 2.5cm 2cm;
+
+  @top-left {
+    content: string(doc-title);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 9pt;
+    color: #555;
+  }
+
+  @top-right {
+    content: string(doc-workspace);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 9pt;
+    color: #555;
+  }
+
+  @bottom-center {
+    content: counter(page);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 9pt;
+    color: #555;
+  }
+}
+
+@page :first {
+  @top-left { content: none; }
+  @top-right { content: none; }
+  @bottom-center { content: none; }
+}
+
+/* ---- Base ---- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 11pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.6;
+  color: #1a1a1a;
+  margin: 0;
+  padding: 0;
+}
+
+/* Running element strings for headers */
+.doc-title-string {
+  string-set: doc-title content();
+  display: none;
+}
+
+.doc-workspace-string {
+  string-set: doc-workspace content();
+  display: none;
+}
+
+/* ---- Front page ---- */
+
+.front-page {
+  page-break-after: always;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  text-align: center;
+}
+
+.front-page h1 {
+  font-size: 28pt;
+  font-weight: 700;
+  margin-bottom: 0.5em;
+  color: #111;
+  border: none;
+  counter-reset: none;
+}
+
+.front-page h1::before {
+  content: none !important;
+}
+
+.front-page .authors {
+  font-size: 14pt;
+  color: #333;
+  margin-bottom: 0.3em;
+}
+
+.front-page .workspace {
+  font-size: 12pt;
+  color: #666;
+  margin-bottom: 0.3em;
+}
+
+.front-page .date {
+  font-size: 11pt;
+  color: #666;
+  margin-top: 1em;
+}
+
+/* ---- Table of contents ---- */
+
+.toc {
+  page-break-after: always;
+}
+
+.toc h2 {
+  font-size: 18pt;
+  margin-bottom: 1em;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0.3em;
+  counter-reset: none;
+}
+
+.toc h2::before {
+  content: none !important;
+}
+
+.toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc li {
+  margin: 0.3em 0;
+  line-height: 1.5;
+}
+
+.toc li.toc-h1 {
+  font-weight: 700;
+  font-size: 11pt;
+}
+
+.toc li.toc-h2 {
+  padding-left: 1.5em;
+  font-size: 10.5pt;
+}
+
+.toc li.toc-h3 {
+  padding-left: 3em;
+  font-size: 10pt;
+  color: #444;
+}
+
+.toc a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.toc a:hover {
+  text-decoration: underline;
+}
+
+/* ---- Heading numbering via CSS counters ---- */
+
+body {
+  counter-reset: h1counter figcounter tablecounter;
+}
+
+h1 {
+  counter-reset: h2counter;
+  counter-increment: h1counter;
+  font-size: 20pt;
+  margin-top: 1.8em;
+  margin-bottom: 0.5em;
+  page-break-after: avoid;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 0.2em;
+}
+
+h1::before {
+  content: counter(h1counter) "  ";
+}
+
+h2 {
+  counter-reset: h3counter;
+  counter-increment: h2counter;
+  font-size: 16pt;
+  margin-top: 1.4em;
+  margin-bottom: 0.4em;
+  page-break-after: avoid;
+}
+
+h2::before {
+  content: counter(h1counter) "." counter(h2counter) "  ";
+}
+
+h3 {
+  counter-increment: h3counter;
+  font-size: 13pt;
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+  page-break-after: avoid;
+}
+
+h3::before {
+  content: counter(h1counter) "." counter(h2counter) "." counter(h3counter) "  ";
+}
+
+h4, h5, h6 {
+  font-size: 11pt;
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.3em;
+  page-break-after: avoid;
+}
+
+/* ---- Paragraphs ---- */
+
+p {
+  margin: 0.6em 0;
+  text-align: justify;
+  orphans: 3;
+  widows: 3;
+}
+
+/* ---- Links ---- */
+
+a {
+  color: #1a5276;
+  text-decoration: underline;
+}
+
+/* ---- Lists ---- */
+
+ul, ol {
+  margin: 0.5em 0;
+  padding-left: 2em;
+}
+
+li {
+  margin: 0.2em 0;
+}
+
+/* ---- Code ---- */
+
+code {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.9em;
+  background: #f5f5f5;
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+
+pre {
+  background: #f7f7f8;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 0.8em 1em;
+  margin: 0.8em 0;
+  overflow-x: auto;
+  font-size: 0.85em;
+  line-height: 1.45;
+  page-break-inside: avoid;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+/* ---- Blockquotes ---- */
+
+blockquote {
+  border-left: 3px solid #bbb;
+  margin: 0.8em 0;
+  padding: 0.4em 1em;
+  color: #444;
+  font-style: italic;
+  page-break-inside: avoid;
+}
+
+blockquote p {
+  margin: 0.3em 0;
+}
+
+/* ---- Tables ---- */
+
+figure.table-figure {
+  margin: 1em 0;
+  page-break-inside: avoid;
+  counter-increment: tablecounter;
+}
+
+figure.table-figure figcaption {
+  font-size: 0.9em;
+  color: #555;
+  margin-top: 0.4em;
+  text-align: center;
+}
+
+figure.table-figure figcaption::before {
+  content: "Table " counter(tablecounter) ": ";
+  font-weight: 700;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.95em;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+
+th {
+  background: #f0f0f0;
+  font-weight: 700;
+}
+
+tr:nth-child(even) {
+  background: #fafafa;
+}
+
+/* ---- Figures / images ---- */
+
+figure {
+  margin: 1em 0;
+  text-align: center;
+  page-break-inside: avoid;
+  counter-increment: figcounter;
+}
+
+figure img {
+  max-width: 100%;
+  height: auto;
+}
+
+figure figcaption {
+  font-size: 0.9em;
+  color: #555;
+  margin-top: 0.4em;
+}
+
+figure:not(.table-figure) figcaption::before {
+  content: "Figure " counter(figcounter) ": ";
+  font-weight: 700;
+}
+
+/* ---- Horizontal rule ---- */
+
+hr {
+  border: none;
+  border-top: 1px solid #ccc;
+  margin: 1.5em 0;
+}
+
+/* ---- Math (KaTeX) ---- */
+
+.katex-display {
+  margin: 0.8em 0;
+  text-align: center;
+  page-break-inside: avoid;
+}
+
+.katex {
+  font-size: 1em;
+}
+
+/* ---- Footnotes ---- */
+
+.footnotes {
+  margin-top: 2em;
+  border-top: 1px solid #ccc;
+  padding-top: 0.8em;
+  font-size: 0.9em;
+}
+
+.footnotes h2 {
+  font-size: 13pt;
+  margin-bottom: 0.5em;
+}
+
+.footnotes h2::before {
+  content: none;
+}
+
+.footnotes ol {
+  padding-left: 1.5em;
+}
+
+.footnotes li {
+  margin-bottom: 0.3em;
+}
+
+sup.footnote-ref a {
+  color: #1a5276;
+  text-decoration: none;
+  font-size: 0.8em;
+}
