@@ -5,7 +5,7 @@ export default [
 
   // Auth routes
   route("login", "routes/_auth.login.tsx"),
-  route("auth/callback", "routes/_auth.callback.tsx"),
+  route("callback", "routes/_auth.callback.tsx"),
 
   // App shell (authenticated, pathless layout)
   layout("routes/_app.tsx", [
