@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { useFetcher } from "react-router";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
@@ -8,6 +8,7 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import { Collaboration } from "@tiptap/extension-collaboration";
 import { common, createLowlight } from "lowlight";
 import { Toolbar } from "./toolbar/Toolbar";
 import { MathInline } from "./extensions/math-inline";
@@ -29,24 +30,26 @@ interface EditorProps {
 export function Editor({ documentId, initialStateBase64, editable }: EditorProps) {
   const fetcher = useFetcher();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const yjsDocRef = useRef(createYjsDoc());
   const [zoom, setZoom] = useState(100);
 
-  // Initialize Yjs doc from base64 state if provided
-  useEffect(() => {
+  // Create and initialize Yjs doc once, stable across re-renders
+  const yjsDoc = useMemo(() => {
+    const doc = createYjsDoc();
     if (initialStateBase64) {
-      initializeFromBase64(yjsDocRef.current, initialStateBase64);
+      initializeFromBase64(doc, initialStateBase64);
     }
-  }, [initialStateBase64]);
+    return doc;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId]);
 
   const saveState = useCallback(() => {
     if (!editable) return;
-    const base64 = exportToBase64(yjsDocRef.current);
+    const base64 = exportToBase64(yjsDoc);
     const formData = new FormData();
     formData.set("intent", "save-yjs-state");
     formData.set("state", base64);
     fetcher.submit(formData, { method: "POST" });
-  }, [editable, fetcher]);
+  }, [editable, fetcher, yjsDoc]);
 
   const editor = useEditor({
     editable,
@@ -54,6 +57,7 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
       StarterKit.configure({
         codeBlock: false,
         heading: { levels: [1, 2, 3, 4] },
+        history: false, // Yjs handles undo/redo
       }),
       Underline,
       CodeBlockLowlight.configure({ lowlight }),
@@ -65,8 +69,10 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
       MathBlock,
       Footnote,
       Figure,
+      Collaboration.configure({
+        document: yjsDoc,
+      }),
     ],
-    content: "<p></p>",
     editorProps: {
       attributes: {
         class: "editor-content focus:outline-none min-h-[800px]",
@@ -86,13 +92,23 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
     },
   });
 
-  // Clean up debounce timer on unmount
+  // Save on unmount and clean up
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      // Save before leaving
+      if (editable) {
+        const base64 = exportToBase64(yjsDoc);
+        const formData = new FormData();
+        formData.set("intent", "save-yjs-state");
+        formData.set("state", base64);
+        fetcher.submit(formData, { method: "POST" });
+      }
+      yjsDoc.destroy();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const zoomIn = useCallback(() => {
