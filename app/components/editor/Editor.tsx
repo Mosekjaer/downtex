@@ -8,6 +8,7 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import { Image } from "@tiptap/extension-image";
 import { Collaboration } from "@tiptap/extension-collaboration";
 import { common, createLowlight } from "lowlight";
 import { Toolbar } from "./toolbar/Toolbar";
@@ -15,22 +16,41 @@ import { MathInline } from "./extensions/math-inline";
 import { MathBlock } from "./extensions/math-block";
 import { Footnote } from "./extensions/footnote";
 import { Figure } from "./extensions/figure";
+import { DocumentMention } from "./extensions/document-mention";
+import { SectionReference } from "./extensions/section-reference";
+import { ImagePicker } from "~/components/modals/ImagePicker";
+import { FigurePicker } from "~/components/modals/FigurePicker";
+import {
+  DocumentMentionPicker,
+  type DocumentItem,
+} from "~/components/modals/DocumentMentionPicker";
 import { createYjsDoc, initializeFromBase64, exportToBase64 } from "~/lib/yjs";
 
 const lowlight = createLowlight(common);
 
 const ZOOM_STEPS = [50, 75, 100, 125, 150, 200];
 
-interface EditorProps {
+export interface EditorProps {
   documentId: string;
   initialStateBase64: string | null;
   editable: boolean;
+  workspaceId: string;
+  documents?: DocumentItem[];
 }
 
-export function Editor({ documentId, initialStateBase64, editable }: EditorProps) {
+export function Editor({
+  documentId,
+  initialStateBase64,
+  editable,
+  workspaceId,
+  documents = [],
+}: EditorProps) {
   const fetcher = useFetcher();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [zoom, setZoom] = useState(100);
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [showFigurePicker, setShowFigurePicker] = useState(false);
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
 
   // Create and initialize Yjs doc once, stable across re-renders
   const yjsDoc = useMemo(() => {
@@ -57,7 +77,7 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
       StarterKit.configure({
         codeBlock: false,
         heading: { levels: [1, 2, 3, 4] },
-        history: false, // Yjs handles undo/redo
+        undoRedo: false, // Yjs handles undo/redo
       }),
       Underline,
       CodeBlockLowlight.configure({ lowlight }),
@@ -65,10 +85,13 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
       TableRow,
       TableCell,
       TableHeader,
+      Image.configure({ inline: false, allowBase64: true }),
       MathInline,
       MathBlock,
       Footnote,
       Figure,
+      DocumentMention,
+      SectionReference,
       Collaboration.configure({
         document: yjsDoc,
       }),
@@ -127,6 +150,44 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
 
   const resetZoom = useCallback(() => setZoom(100), []);
 
+  const handleInsertImage = useCallback(
+    (src: string, alt: string) => {
+      editor?.chain().focus().setImage({ src, alt }).run();
+    },
+    [editor],
+  );
+
+  const handleInsertFigure = useCallback(
+    (repo: string, path: string) => {
+      const figureId = crypto.randomUUID();
+      editor?.chain().focus().insertFigure({ figureId, githubRepo: repo, githubPath: path }).run();
+
+      // Persist figure metadata to DB
+      const formData = new FormData();
+      formData.set("intent", "insert-figure");
+      formData.set("blockId", figureId);
+      formData.set("githubRepo", repo);
+      formData.set("githubPath", path);
+      fetcher.submit(formData, { method: "POST" });
+    },
+    [editor, fetcher],
+  );
+
+  const handleInsertMention = useCallback(
+    (doc: DocumentItem) => {
+      editor
+        ?.chain()
+        .focus()
+        .insertDocumentMention({
+          documentId: doc.id,
+          documentTitle: doc.title,
+          workspaceId,
+        })
+        .run();
+    },
+    [editor, workspaceId],
+  );
+
   if (!editor) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -137,7 +198,14 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
 
   return (
     <div className="flex h-full flex-col">
-      {editable && <Toolbar editor={editor} />}
+      {editable && (
+        <Toolbar
+          editor={editor}
+          onInsertImage={() => setShowImagePicker(true)}
+          onInsertFigure={() => setShowFigurePicker(true)}
+          onInsertMention={() => setShowMentionPicker(true)}
+        />
+      )}
       <div className="document-canvas flex-1 overflow-y-auto px-4 py-8">
         <div
           className="a4-page"
@@ -179,6 +247,24 @@ export function Editor({ documentId, initialStateBase64, editable }: EditorProps
           +
         </button>
       </div>
+
+      {/* Modals */}
+      <ImagePicker
+        isOpen={showImagePicker}
+        onClose={() => setShowImagePicker(false)}
+        onInsert={handleInsertImage}
+      />
+      <FigurePicker
+        isOpen={showFigurePicker}
+        onClose={() => setShowFigurePicker(false)}
+        onSelect={handleInsertFigure}
+      />
+      <DocumentMentionPicker
+        isOpen={showMentionPicker}
+        onClose={() => setShowMentionPicker(false)}
+        onSelect={handleInsertMention}
+        documents={documents}
+      />
     </div>
   );
 }

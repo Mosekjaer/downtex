@@ -2,9 +2,12 @@ import type { Editor } from "@tiptap/react";
 
 interface ToolbarProps {
   editor: Editor;
+  onInsertImage?: () => void;
+  onInsertFigure?: () => void;
+  onInsertMention?: () => void;
 }
 
-export function Toolbar({ editor }: ToolbarProps) {
+export function Toolbar({ editor, onInsertImage, onInsertFigure, onInsertMention }: ToolbarProps) {
   const isInTable = editor.isActive("table");
 
   return (
@@ -132,6 +135,26 @@ export function Toolbar({ editor }: ToolbarProps) {
         >
           &mdash;
         </ToolbarButton>
+      </ToolbarGroup>
+
+      <Divider />
+
+      <ToolbarGroup>
+        {onInsertImage && (
+          <ToolbarButton active={false} onClick={onInsertImage} title="Insert image">
+            Img
+          </ToolbarButton>
+        )}
+        {onInsertFigure && (
+          <ToolbarButton active={false} onClick={onInsertFigure} title="Insert Draw.io figure">
+            Fig
+          </ToolbarButton>
+        )}
+        {onInsertMention && (
+          <ToolbarButton active={false} onClick={onInsertMention} title="Reference a document">
+            @Doc
+          </ToolbarButton>
+        )}
       </ToolbarGroup>
 
       {isInTable && (
