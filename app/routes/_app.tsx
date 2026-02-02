@@ -33,37 +33,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 }
 
 export default function AppLayout() {
-  const { user, workspaces } = useLoaderData<typeof loader>();
-
   return (
-    <div className="flex h-screen">
-      <aside className="flex w-60 flex-col border-r border-zinc-200 bg-zinc-50">
-        <div className="border-b border-zinc-200 p-3">
-          <p className="text-sm font-semibold text-zinc-900">{user.displayName}</p>
-        </div>
-        <nav className="flex-1 overflow-y-auto p-2">
-          {workspaces.map((ws) => (
-            <a
-              key={ws.id}
-              href={`/workspace/${ws.id}`}
-              className="block rounded-md px-2 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100"
-            >
-              {ws.name}
-            </a>
-          ))}
-        </nav>
-        <div className="border-t border-zinc-200 p-2">
-          <a
-            href="/settings"
-            className="block rounded-md px-2 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100"
-          >
-            Settings
-          </a>
-        </div>
-      </aside>
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+    <div className="h-screen">
+      <Outlet />
     </div>
   );
 }

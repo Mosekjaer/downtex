@@ -2,9 +2,14 @@ import type { Editor } from "@tiptap/react";
 
 interface ToolbarProps {
   editor: Editor;
+  onInsertImage?: () => void;
+  onInsertFigure?: () => void;
+  onInsertMention?: () => void;
 }
 
-export function Toolbar({ editor }: ToolbarProps) {
+export function Toolbar({ editor, onInsertImage, onInsertFigure, onInsertMention }: ToolbarProps) {
+  const isInTable = editor.isActive("table");
+
   return (
     <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b border-zinc-200 bg-white px-3 py-1.5">
       <ToolbarGroup>
@@ -131,6 +136,89 @@ export function Toolbar({ editor }: ToolbarProps) {
           &mdash;
         </ToolbarButton>
       </ToolbarGroup>
+
+      <Divider />
+
+      <ToolbarGroup>
+        {onInsertImage && (
+          <ToolbarButton active={false} onClick={onInsertImage} title="Insert image">
+            Img
+          </ToolbarButton>
+        )}
+        {onInsertFigure && (
+          <ToolbarButton active={false} onClick={onInsertFigure} title="Insert Draw.io figure">
+            Fig
+          </ToolbarButton>
+        )}
+        {onInsertMention && (
+          <ToolbarButton active={false} onClick={onInsertMention} title="Reference a document">
+            @Doc
+          </ToolbarButton>
+        )}
+      </ToolbarGroup>
+
+      {isInTable && (
+        <>
+          <Divider />
+          <ToolbarGroup>
+            <ToolbarButton
+              active={false}
+              onClick={() => editor.chain().focus().addColumnBefore().run()}
+              title="Add column before"
+            >
+              ←Col
+            </ToolbarButton>
+            <ToolbarButton
+              active={false}
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+              title="Add column after"
+            >
+              Col→
+            </ToolbarButton>
+            <ToolbarButton
+              active={false}
+              onClick={() => editor.chain().focus().addRowBefore().run()}
+              title="Add row above"
+            >
+              ↑Row
+            </ToolbarButton>
+            <ToolbarButton
+              active={false}
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+              title="Add row below"
+            >
+              Row↓
+            </ToolbarButton>
+          </ToolbarGroup>
+
+          <ToolbarGroup>
+            <ToolbarButton
+              active={false}
+              onClick={() => editor.chain().focus().deleteColumn().run()}
+              title="Delete column"
+              danger
+            >
+              ×Col
+            </ToolbarButton>
+            <ToolbarButton
+              active={false}
+              onClick={() => editor.chain().focus().deleteRow().run()}
+              title="Delete row"
+              danger
+            >
+              ×Row
+            </ToolbarButton>
+            <ToolbarButton
+              active={false}
+              onClick={() => editor.chain().focus().deleteTable().run()}
+              title="Delete table"
+              danger
+            >
+              ×Table
+            </ToolbarButton>
+          </ToolbarGroup>
+        </>
+      )}
     </div>
   );
 }
@@ -144,11 +232,13 @@ function ToolbarButton({
   onClick,
   title,
   children,
+  danger,
 }: {
   active: boolean;
   onClick: () => void;
   title: string;
   children: React.ReactNode;
+  danger?: boolean;
 }) {
   return (
     <button
@@ -158,7 +248,9 @@ function ToolbarButton({
       className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
         active
           ? "bg-accent-100 text-accent-700"
-          : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+          : danger
+            ? "text-red-500 hover:bg-red-50 hover:text-red-700"
+            : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
       } focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-1`}
     >
       {children}

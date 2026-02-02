@@ -30,19 +30,29 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     throw new Response("Document not found", { status: 404 });
   }
 
-  const [{ data: workspace }, { data: collaboratorRows }, { data: publicLinkRow }] =
-    await Promise.all([
-      supabase.from("workspaces").select("name").eq("id", workspaceId).single(),
-      supabase
-        .from("document_collaborators")
-        .select("user_id, role, profiles:user_id(display_name)")
-        .eq("document_id", documentId),
-      supabase
-        .from("document_public_links")
-        .select("token")
-        .eq("document_id", documentId)
-        .maybeSingle(),
-    ]);
+  const [
+    { data: workspace },
+    { data: collaboratorRows },
+    { data: publicLinkRow },
+    { data: workspaceDocs },
+  ] = await Promise.all([
+    supabase.from("workspaces").select("name").eq("id", workspaceId).single(),
+    supabase
+      .from("document_collaborators")
+      .select("user_id, role, profiles:user_id(display_name)")
+      .eq("document_id", documentId),
+    supabase
+      .from("document_public_links")
+      .select("token")
+      .eq("document_id", documentId)
+      .maybeSingle(),
+    supabase
+      .from("documents")
+      .select("id, title, folder_id, folders(name)")
+      .eq("workspace_id", workspaceId)
+      .neq("id", documentId)
+      .order("title"),
+  ]);
 
   // Build collaborator list including the owner
   const collaborators: Array<{ userId: string; displayName: string; role: string }> = [];
@@ -75,7 +85,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }
   }
 
-  const yjsStateBase64 = doc.yjs_state ? Buffer.from(doc.yjs_state).toString("base64") : null;
+  // Supabase returns bytea as \x-prefixed hex string
+  let yjsStateBase64: string | null = null;
+  if (doc.yjs_state) {
+    const hex =
+      typeof doc.yjs_state === "string" && doc.yjs_state.startsWith("\\x")
+        ? doc.yjs_state.slice(2)
+        : Buffer.from(doc.yjs_state).toString("hex");
+    yjsStateBase64 = Buffer.from(hex, "hex").toString("base64");
+  }
 
   return {
     document: {
@@ -90,6 +108,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     user: { id: user.id },
     collaborators,
     publicLink: publicLinkRow ? { token: publicLinkRow.token } : null,
+    workspaceDocuments: (workspaceDocs ?? []).map((d) => ({
+      id: d.id,
+      title: d.title,
+      folderId: d.folder_id,
+      folderName: (d.folders as unknown as { name: string } | null)?.name ?? undefined,
+    })),
   };
 }
 
@@ -111,10 +135,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
     case "save-yjs-state": {
       requireRole(role, "editor");
       const stateBase64 = formData.get("state") as string;
-      const stateBuffer = Buffer.from(stateBase64, "base64");
+      // Supabase expects bytea as \x-prefixed hex string, not a Buffer object
+      const stateHex = "\\x" + Buffer.from(stateBase64, "base64").toString("hex");
       await supabase
         .from("documents")
-        .update({ yjs_state: stateBuffer, updated_at: new Date().toISOString() })
+        .update({ yjs_state: stateHex, updated_at: new Date().toISOString() })
         .eq("id", documentId);
       return { ok: true };
     }
@@ -277,7 +302,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function DocumentEditorPage() {
-  const { document, yjsStateBase64, role, user, collaborators, publicLink } =
+  const { document, yjsStateBase64, role, user, collaborators, publicLink, workspaceDocuments } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [title, setTitle] = useState(document.title);
@@ -346,11 +371,13 @@ export default function DocumentEditorPage() {
           )}
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         <Editor
           documentId={document.id}
           initialStateBase64={yjsStateBase64}
           editable={isEditable}
+          workspaceId={document.workspaceId}
+          documents={workspaceDocuments}
         />
       </div>
       {isEditable && (

@@ -19,7 +19,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
   }, [value, onSearch]);
 
   return (
-    <div className="relative mb-2">
+    <div className="relative">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="14"
@@ -27,7 +27,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
         className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400"
@@ -39,8 +39,8 @@ export function SearchBar({ onSearch }: SearchBarProps) {
         type="text"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search files..."
-        className="w-full rounded-md border border-zinc-300 py-1.5 pl-8 pr-8 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-1"
+        placeholder="Search..."
+        className="w-full rounded-md border border-zinc-200 bg-white/60 py-1.5 pl-8 pr-8 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors focus:border-zinc-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-accent-500"
       />
       {value && (
         <button
@@ -48,7 +48,7 @@ export function SearchBar({ onSearch }: SearchBarProps) {
             setValue("");
             onSearch("");
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-700"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-600"
           aria-label="Clear search"
         >
           <svg

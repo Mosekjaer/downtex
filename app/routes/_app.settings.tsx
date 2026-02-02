@@ -1,6 +1,7 @@
 import {
   useLoaderData,
   useFetcher,
+  Link,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
 } from "react-router";
@@ -110,24 +111,38 @@ export default function SettingsPage() {
     // Client-side Supabase linkIdentity redirect
     // Uses the Supabase JS client from the browser
     import("@supabase/supabase-js").then(({ createClient }) => {
-      const supabase = createClient(
-        window.ENV.SUPABASE_URL,
-        window.ENV.SUPABASE_ANON_KEY,
-      );
+      const supabase = createClient(window.ENV.SUPABASE_URL, window.ENV.SUPABASE_ANON_KEY);
       supabase.auth.linkIdentity({ provider: provider as "github" | "google" });
     });
   }
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-10">
+      <Link
+        to="/"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-700"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        Back
+      </Link>
       <h1 className="text-xl font-semibold text-zinc-900">Settings</h1>
 
       {/* Profile Section */}
       <section className="mt-8">
         <h2 className="text-base font-medium text-zinc-900">Profile</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Update your display name and avatar.
-        </p>
+        <p className="mt-1 text-sm text-zinc-500">Update your display name and avatar.</p>
 
         <profileFetcher.Form method="post" className="mt-4 space-y-4">
           <input type="hidden" name="intent" value="update-profile" />
@@ -151,9 +166,7 @@ export default function SettingsPage() {
             <Button type="submit" disabled={profileBusy}>
               {profileBusy ? "Saving..." : "Save profile"}
             </Button>
-            {profileResult?.ok && (
-              <span className="text-sm text-green-600">Saved</span>
-            )}
+            {profileResult?.ok && <span className="text-sm text-green-600">Saved</span>}
             {profileResult?.error && (
               <span className="text-sm text-red-600">{profileResult.error}</span>
             )}
@@ -164,9 +177,7 @@ export default function SettingsPage() {
       {/* Connected Accounts Section */}
       <section className="mt-10">
         <h2 className="text-base font-medium text-zinc-900">Connected accounts</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Link external providers to your account.
-        </p>
+        <p className="mt-1 text-sm text-zinc-500">Link external providers to your account.</p>
 
         <div className="mt-4 space-y-3">
           {KNOWN_PROVIDERS.map((provider) => {
@@ -177,9 +188,7 @@ export default function SettingsPage() {
                 className="flex items-center justify-between rounded-lg border border-zinc-200 px-4 py-3"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-zinc-900">
-                    {provider.label}
-                  </span>
+                  <span className="text-sm font-medium text-zinc-900">{provider.label}</span>
                   {isLinked ? (
                     <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                       Linked
@@ -208,17 +217,11 @@ export default function SettingsPage() {
       {/* Notifications Section */}
       <section className="mt-10">
         <h2 className="text-base font-medium text-zinc-900">Notifications</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Choose what notifications you receive.
-        </p>
+        <p className="mt-1 text-sm text-zinc-500">Choose what notifications you receive.</p>
 
         <notifFetcher.Form method="post" className="mt-4">
           <input type="hidden" name="intent" value="update-notifications" />
-          <input
-            type="hidden"
-            name="emailComments"
-            value={emailComments ? "true" : "false"}
-          />
+          <input type="hidden" name="emailComments" value={emailComments ? "true" : "false"} />
           <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
@@ -226,17 +229,13 @@ export default function SettingsPage() {
               onChange={(e) => setEmailComments(e.target.checked)}
               className="h-4 w-4 rounded border-zinc-300 text-accent-600 focus:ring-accent-500"
             />
-            <span className="text-sm text-zinc-700">
-              Email me on new comments
-            </span>
+            <span className="text-sm text-zinc-700">Email me on new comments</span>
           </label>
           <div className="mt-4 flex items-center gap-3">
             <Button type="submit" disabled={notifBusy}>
               {notifBusy ? "Saving..." : "Save notifications"}
             </Button>
-            {notifResult?.ok && (
-              <span className="text-sm text-green-600">Saved</span>
-            )}
+            {notifResult?.ok && <span className="text-sm text-green-600">Saved</span>}
             {notifResult?.error && (
               <span className="text-sm text-red-600">{notifResult.error}</span>
             )}

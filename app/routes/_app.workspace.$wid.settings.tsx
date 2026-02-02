@@ -2,6 +2,8 @@ import {
   useLoaderData,
   useFetcher,
   useNavigate,
+  useParams,
+  Link,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
 } from "react-router";
@@ -166,6 +168,7 @@ export default function WorkspaceSettings() {
   const { workspace, members, userId } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const navigate = useNavigate();
+  const params = useParams();
 
   const [wsName, setWsName] = useState(workspace?.name ?? "");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -184,6 +187,25 @@ export default function WorkspaceSettings() {
 
   return (
     <div className="mx-auto max-w-2xl p-6">
+      <Link
+        to={`/workspace/${params.wid}`}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-700"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+        Back to workspace
+      </Link>
       <h1 className="mb-6 text-xl font-semibold text-zinc-900">Workspace Settings</h1>
 
       {/* Error display */}
