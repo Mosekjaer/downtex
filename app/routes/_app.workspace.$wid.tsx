@@ -648,7 +648,7 @@ export default function WorkspaceLayout() {
               )}
             </div>
 
-            {/* Bottom user section */}
+            {/* Bottom section */}
             <div className="border-t border-zinc-100 p-2">
               <Link
                 to="/settings"
@@ -670,6 +670,10 @@ export default function WorkspaceLayout() {
                 </svg>
                 Settings
               </Link>
+              <div className="mt-1 flex items-center gap-1.5 px-2 py-1">
+                <img src="/favicon.svg" alt="" className="h-4 w-4 opacity-40" />
+                <span className="text-[11px] font-medium text-zinc-300">downtex</span>
+              </div>
             </div>
           </>
         )}
