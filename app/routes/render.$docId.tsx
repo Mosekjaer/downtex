@@ -35,7 +35,7 @@ export function createRenderToken(entry: Omit<TokenEntry, "expiresAt">): string 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
-  const docId = params.docId!;
+  const docId = params.docId ?? "";
 
   if (!token) {
     throw new Response("Missing token", { status: 400 });

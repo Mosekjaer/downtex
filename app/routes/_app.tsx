@@ -1,4 +1,4 @@
-import { Outlet, type LoaderFunctionArgs, useLoaderData } from "react-router";
+import { Outlet, type LoaderFunctionArgs } from "react-router";
 import { requireAuth } from "~/lib/supabase.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -22,13 +22,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
       avatarUrl: profile?.avatar_url ?? null,
     },
     workspaces:
-      workspaces?.map((wm) => ({
-        id: (wm.workspaces as { id: string }).id,
-        name: (wm.workspaces as { name: string }).name,
-        avatarUrl: (wm.workspaces as { avatar_url: string | null }).avatar_url,
-        type: (wm.workspaces as { type: string }).type,
-        role: wm.role,
-      })) ?? [],
+      workspaces?.map((wm) => {
+        const ws = wm.workspaces as unknown as {
+          id: string;
+          name: string;
+          avatar_url: string | null;
+          type: string;
+        };
+        return {
+          id: ws.id,
+          name: ws.name,
+          avatarUrl: ws.avatar_url,
+          type: ws.type,
+          role: wm.role,
+        };
+      }) ?? [],
   };
 }
 

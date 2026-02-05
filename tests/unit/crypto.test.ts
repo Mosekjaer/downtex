@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 // Mock the env module before importing crypto
 vi.mock("~/lib/env.server", () => ({
@@ -29,7 +29,8 @@ describe("crypto", () => {
     }));
 
     // Manually create a decryptor with the wrong key to test
-    const { createDecipheriv } = require("node:crypto");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/consistent-type-imports
+    const { createDecipheriv } = require("node:crypto") as typeof import("node:crypto");
     const wrongKey = Buffer.from(
       "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
       "hex",

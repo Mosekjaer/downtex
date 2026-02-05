@@ -97,7 +97,7 @@ function deltaToInlineNodes(
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
-  const documentId = params.docId!;
+  const documentId = params.docId ?? "";
 
   // 1. Auth + role check (editor or above)
   const role = await getUserDocumentRole(supabase, documentId, user.id);
@@ -128,8 +128,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
     .eq("document_id", documentId)
     .in("role", ["owner", "editor"]);
 
-  const authors: string[] = (collaborators ?? []).map((c: any) => {
-    const profile = c.profiles;
+  const authors: string[] = (collaborators ?? []).map((c) => {
+    const profile = c.profiles as unknown as { display_name?: string; email?: string } | null;
     return profile?.display_name || profile?.email || "Unknown";
   });
 
@@ -154,6 +154,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
       content = xmlFragmentToJson(fragment);
       ydoc.destroy();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error("Failed to decode Yjs state:", err);
       // Continue with empty content
     }
@@ -179,7 +180,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   // 8. Return PDF response
   const safeFilename = title.replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "document";
 
-  return new Response(pdfBuffer, {
+  return new Response(new Uint8Array(pdfBuffer), {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",

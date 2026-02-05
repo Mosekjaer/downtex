@@ -3,7 +3,6 @@ import {
   useLoaderData,
   useFetcher,
   Link,
-  useParams,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
 } from "react-router";
@@ -30,7 +29,7 @@ interface Document {
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
-  const workspaceId = params.wid!;
+  const workspaceId = params.wid ?? "";
 
   const role = await getUserWorkspaceRole(supabase, workspaceId, user.id);
   if (!role) {
@@ -83,7 +82,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
-  const workspaceId = params.wid!;
+  const workspaceId = params.wid ?? "";
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
@@ -206,7 +205,6 @@ export async function action({ request, params }: ActionFunctionArgs) {
 export default function WorkspaceLayout() {
   const { workspace, folders, documents, role, workspaces } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
-  const params = useParams();
 
   const isEditor = role === "owner" || role === "editor";
   const isOwner = role === "owner";

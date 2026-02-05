@@ -3,8 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 // Mock katex
 vi.mock("katex", () => ({
   default: {
-    renderToString: (latex: string, _opts: unknown) =>
-      `<span class="katex">${latex}</span>`,
+    renderToString: (latex: string) => `<span class="katex">${latex}</span>`,
   },
 }));
 
@@ -179,7 +178,7 @@ describe("pdf-template", () => {
             {
               type: "codeBlock",
               attrs: { language: "typescript" },
-              content: [{ type: "text", text: 'const x = 1;' }],
+              content: [{ type: "text", text: "const x = 1;" }],
             },
           ],
         }),

@@ -12,8 +12,8 @@ import { useState, useCallback } from "react";
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
-  const documentId = params.docId!;
-  const workspaceId = params.wid!;
+  const documentId = params.docId ?? "";
+  const workspaceId = params.wid ?? "";
 
   const role = await getUserDocumentRole(supabase, documentId, user.id);
   if (!role) {
@@ -119,7 +119,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
-  const documentId = params.docId!;
+  const documentId = params.docId ?? "";
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 
@@ -302,7 +302,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function DocumentEditorPage() {
-  const { document, yjsStateBase64, role, user, collaborators, publicLink, workspaceDocuments } =
+  const { document, yjsStateBase64, role, collaborators, publicLink, workspaceDocuments } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const [title, setTitle] = useState(document.title);

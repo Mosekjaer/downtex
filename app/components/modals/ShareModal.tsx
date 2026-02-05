@@ -24,6 +24,7 @@ const ROLE_OPTIONS = [
 ] as const;
 
 export function ShareModal({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   documentId,
   isOpen,
   onClose,
@@ -39,9 +40,7 @@ export function ShareModal({
   const [newRole, setNewRole] = useState<string>("viewer");
   const [copied, setCopied] = useState(false);
 
-  const publicUrl = publicLink
-    ? `${window.location.origin}/share/${publicLink.token}`
-    : null;
+  const publicUrl = publicLink ? `${window.location.origin}/share/${publicLink.token}` : null;
 
   function handleAddPerson() {
     if (!email.trim()) return;
@@ -53,17 +52,11 @@ export function ShareModal({
   }
 
   function handleRemove(userId: string) {
-    removeFetcher.submit(
-      { intent: "remove-share", userId },
-      { method: "post" },
-    );
+    removeFetcher.submit({ intent: "remove-share", userId }, { method: "post" });
   }
 
   function handleRoleChange(userId: string, role: string) {
-    roleFetcher.submit(
-      { intent: "share-user", userId, role },
-      { method: "post" },
-    );
+    roleFetcher.submit({ intent: "share-user", userId, role }, { method: "post" });
   }
 
   function handleTogglePublicLink() {
@@ -80,17 +73,14 @@ export function ShareModal({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const isSubmitting =
-    shareFetcher.state !== "idle" || linkFetcher.state !== "idle";
+  const isSubmitting = shareFetcher.state !== "idle" || linkFetcher.state !== "idle";
 
   return (
     <Modal open={isOpen} onClose={onClose} title="Share document">
       <div className="space-y-6">
         {/* Add people section */}
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-zinc-700">
-            Add people
-          </label>
+          <label className="mb-1.5 block text-sm font-medium text-zinc-700">Add people</label>
           <div className="flex gap-2">
             <input
               type="email"
@@ -116,11 +106,7 @@ export function ShareModal({
                 </option>
               ))}
             </select>
-            <Button
-              size="sm"
-              onClick={handleAddPerson}
-              disabled={!email.trim() || isSubmitting}
-            >
+            <Button size="sm" onClick={handleAddPerson} disabled={!email.trim() || isSubmitting}>
               Add
             </Button>
           </div>
@@ -134,18 +120,11 @@ export function ShareModal({
         {/* Current collaborators */}
         {currentCollaborators.length > 0 && (
           <div>
-            <h3 className="mb-2 text-sm font-medium text-zinc-700">
-              People with access
-            </h3>
+            <h3 className="mb-2 text-sm font-medium text-zinc-700">People with access</h3>
             <ul className="divide-y divide-zinc-100">
               {currentCollaborators.map((collab) => (
-                <li
-                  key={collab.userId}
-                  className="flex items-center justify-between py-2"
-                >
-                  <span className="text-sm text-zinc-900">
-                    {collab.displayName}
-                  </span>
+                <li key={collab.userId} className="flex items-center justify-between py-2">
+                  <span className="text-sm text-zinc-900">{collab.displayName}</span>
                   <div className="flex items-center gap-2">
                     {collab.role === "owner" ? (
                       <span className="text-xs text-zinc-500">Owner</span>
@@ -153,9 +132,7 @@ export function ShareModal({
                       <>
                         <select
                           value={collab.role}
-                          onChange={(e) =>
-                            handleRoleChange(collab.userId, e.target.value)
-                          }
+                          onChange={(e) => handleRoleChange(collab.userId, e.target.value)}
                           className="rounded border border-zinc-200 px-1.5 py-0.5 text-xs text-zinc-700 focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500"
                         >
                           {ROLE_OPTIONS.map((opt) => (

@@ -17,9 +17,7 @@ export type FigurePickerProps = {
  *
  * Returns null if the URL cannot be parsed.
  */
-function parseGitHubUrl(
-  raw: string,
-): { repo: string; path: string } | null {
+function parseGitHubUrl(raw: string): { repo: string; path: string } | null {
   try {
     const url = new URL(raw.trim());
     if (url.hostname !== "github.com") return null;
@@ -28,7 +26,7 @@ function parseGitHubUrl(
     const parts = url.pathname.replace(/^\//, "").split("/");
     if (parts.length < 5) return null;
 
-    const [owner, repo, blobOrTree, _branch, ...rest] = parts;
+    const [owner, repo, blobOrTree, , ...rest] = parts;
     if (blobOrTree !== "blob" && blobOrTree !== "tree") return null;
     if (!rest.length) return null;
 
@@ -117,9 +115,7 @@ export function FigurePicker({ isOpen, onClose, onSelect }: FigurePickerProps) {
                 placeholder="https://github.com/owner/repo/blob/main/diagrams/arch.drawio"
                 className="w-full rounded-md border border-zinc-300 px-3 py-1.5 text-sm focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500"
               />
-              {error && (
-                <p className="mt-1 text-xs text-red-600">{error}</p>
-              )}
+              {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={onClose}>
@@ -135,8 +131,8 @@ export function FigurePicker({ isOpen, onClose, onSelect }: FigurePickerProps) {
         {activeTab === "browse" && (
           <div className="flex items-center justify-center rounded-md border border-dashed border-zinc-300 py-10">
             <p className="text-sm text-zinc-400">
-              Repository browsing will be available in a future release. Use the
-              "Paste URL" tab for now.
+              Repository browsing will be available in a future release. Use the "Paste URL" tab for
+              now.
             </p>
           </div>
         )}
