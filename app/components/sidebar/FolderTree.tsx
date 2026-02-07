@@ -400,7 +400,17 @@ export function FolderTree({
               }}
             />
           ) : (
-            <span className="min-w-0 flex-1 truncate text-zinc-700 select-none">{folder.name}</span>
+            <Link
+              to={`/workspace/${workspaceId}/folder/${folder.id}`}
+              className={`min-w-0 flex-1 truncate select-none ${
+                params.folderId === folder.id
+                  ? "font-medium text-accent-700"
+                  : "text-zinc-700 hover:text-zinc-900"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {folder.name}
+            </Link>
           )}
 
           {isEditor && !isRenamingThis && (

@@ -2,6 +2,7 @@ import {
   Outlet,
   useLoaderData,
   useFetcher,
+  useNavigation,
   Link,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
@@ -12,6 +13,7 @@ import { getUserWorkspaceRole, requireRole } from "~/lib/permissions.server";
 import { FolderTree } from "~/components/sidebar/FolderTree";
 import { SearchBar } from "~/components/sidebar/SearchBar";
 import { WorkspaceSwitcher } from "~/components/sidebar/WorkspaceSwitcher";
+import { EditorSkeleton } from "~/components/editor/EditorSkeleton";
 
 interface Folder {
   id: string;
@@ -205,6 +207,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 export default function WorkspaceLayout() {
   const { workspace, folders, documents, role, workspaces } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const navigation = useNavigation();
 
   const isEditor = role === "owner" || role === "editor";
   const isOwner = role === "owner";
@@ -678,8 +681,13 @@ export default function WorkspaceLayout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-hidden">
+      <main className="relative flex-1 overflow-hidden">
         <Outlet />
+        {navigation.state === "loading" && (
+          <div className="absolute inset-0 z-10">
+            <EditorSkeleton />
+          </div>
+        )}
       </main>
     </div>
   );
