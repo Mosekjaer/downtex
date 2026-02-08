@@ -238,9 +238,14 @@ export function FolderTree({
   }, []);
 
   const childFolders = (parentId: string | null) =>
-    folders.filter((f) => f.parent_folder_id === parentId);
+    folders
+      .filter((f) => f.parent_folder_id === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-  const folderDocs = (folderId: string) => documents.filter((d) => d.folder_id === folderId);
+  const folderDocs = (folderId: string) =>
+    documents
+      .filter((d) => d.folder_id === folderId)
+      .sort((a, b) => a.title.localeCompare(b.title));
 
   const visibleIds = getVisibleFolderIds(folders, documents, searchQuery);
 
