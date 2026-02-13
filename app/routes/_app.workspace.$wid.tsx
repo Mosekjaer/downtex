@@ -2,6 +2,7 @@ import {
   Outlet,
   useLoaderData,
   useFetcher,
+  useNavigation,
   Link,
   type LoaderFunctionArgs,
   type ActionFunctionArgs,
@@ -205,6 +206,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 export default function WorkspaceLayout() {
   const { workspace, folders, documents, role, workspaces } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
+  const navigation = useNavigation();
 
   const isEditor = role === "owner" || role === "editor";
   const isOwner = role === "owner";
@@ -668,18 +670,23 @@ export default function WorkspaceLayout() {
                 </svg>
                 Settings
               </Link>
-              <div className="mt-1 flex items-center gap-1.5 px-2 py-1">
-                <img src="/favicon.svg" alt="" className="h-4 w-4 opacity-40" />
-                <span className="text-[11px] font-medium text-zinc-300">downtex</span>
-              </div>
             </div>
           </>
         )}
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
+      <main className="relative flex-1 overflow-hidden">
+        {navigation.state === "loading" && (
+          <div className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden bg-accent-100">
+            <div className="h-full w-1/3 animate-[shimmer_1s_ease-in-out_infinite] bg-accent-500" />
+          </div>
+        )}
+        <div
+          className={`h-full transition-opacity duration-150 ${navigation.state === "loading" ? "pointer-events-none opacity-60" : ""}`}
+        >
+          <Outlet />
+        </div>
       </main>
     </div>
   );

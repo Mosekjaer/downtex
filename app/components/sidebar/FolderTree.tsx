@@ -196,13 +196,17 @@ export function FolderTree({
   } | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
+  const ctxMenuRef = useRef<HTMLDivElement>(null);
 
   // Close context menu on outside click / Escape
   useEffect(() => {
     if (!ctxMenu) return;
-    const close = () => setCtxMenu(null);
+    const close = (e: MouseEvent) => {
+      if (ctxMenuRef.current?.contains(e.target as Node)) return;
+      setCtxMenu(null);
+    };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") setCtxMenu(null);
     };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", onKey);
@@ -238,9 +242,14 @@ export function FolderTree({
   }, []);
 
   const childFolders = (parentId: string | null) =>
-    folders.filter((f) => f.parent_folder_id === parentId);
+    folders
+      .filter((f) => f.parent_folder_id === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-  const folderDocs = (folderId: string) => documents.filter((d) => d.folder_id === folderId);
+  const folderDocs = (folderId: string) =>
+    documents
+      .filter((d) => d.folder_id === folderId)
+      .sort((a, b) => a.title.localeCompare(b.title));
 
   const visibleIds = getVisibleFolderIds(folders, documents, searchQuery);
 
@@ -400,7 +409,17 @@ export function FolderTree({
               }}
             />
           ) : (
-            <span className="min-w-0 flex-1 truncate text-zinc-700 select-none">{folder.name}</span>
+            <Link
+              to={`/workspace/${workspaceId}/folder/${folder.id}`}
+              className={`min-w-0 flex-1 truncate select-none ${
+                params.folderId === folder.id
+                  ? "font-medium text-accent-700"
+                  : "text-zinc-700 hover:text-zinc-900"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {folder.name}
+            </Link>
           )}
 
           {isEditor && !isRenamingThis && (
@@ -550,9 +569,9 @@ export function FolderTree({
       {/* Context menu */}
       {ctxMenu && (
         <div
+          ref={ctxMenuRef}
           className="fixed z-50 min-w-[180px] overflow-hidden rounded-lg border border-zinc-200 bg-white py-1 shadow-lg"
           style={{ top: ctxMenu.y, left: ctxMenu.x }}
-          onMouseDown={(e) => e.stopPropagation()}
         >
           {ctxMenu.type === "folder" && (
             <>

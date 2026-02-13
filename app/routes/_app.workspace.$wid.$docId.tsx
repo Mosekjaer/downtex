@@ -305,18 +305,18 @@ export default function DocumentEditorPage() {
   const { document, yjsStateBase64, role, collaborators, publicLink, workspaceDocuments } =
     useLoaderData<typeof loader>();
   const fetcher = useFetcher();
-  const [title, setTitle] = useState(document.title);
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  // Track editing title separately — null means not editing
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
   const isEditable = role === "owner" || role === "editor";
 
   const handleTitleBlur = useCallback(() => {
-    setIsEditingTitle(false);
-    if (title !== document.title) {
-      fetcher.submit({ intent: "update-title", title }, { method: "post" });
+    if (editingTitle !== null && editingTitle !== document.title) {
+      fetcher.submit({ intent: "update-title", title: editingTitle }, { method: "post" });
     }
-  }, [title, document.title, fetcher]);
+    setEditingTitle(null);
+  }, [editingTitle, document.title, fetcher]);
 
   const handleExport = useCallback(() => {
     const form = window.document.createElement("form");
@@ -331,10 +331,10 @@ export default function DocumentEditorPage() {
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
         <div className="flex items-center gap-3">
-          {isEditingTitle ? (
+          {editingTitle !== null ? (
             <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
               onBlur={handleTitleBlur}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleTitleBlur();
@@ -344,10 +344,10 @@ export default function DocumentEditorPage() {
             />
           ) : (
             <button
-              onClick={() => isEditable && setIsEditingTitle(true)}
+              onClick={() => isEditable && setEditingTitle(document.title)}
               className="text-sm font-medium text-zinc-900 hover:text-accent-600"
             >
-              {title}
+              {document.title}
             </button>
           )}
           <span className="text-xs text-zinc-400">{document.workspaceName}</span>
@@ -373,6 +373,7 @@ export default function DocumentEditorPage() {
       </header>
       <div className="flex-1 overflow-hidden">
         <Editor
+          key={document.id}
           documentId={document.id}
           initialStateBase64={yjsStateBase64}
           editable={isEditable}
