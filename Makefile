@@ -78,7 +78,7 @@ db-migrate: ## Run pending migrations
 	npx supabase migration up
 
 db-push: ## Push migrations to remote database (uses DB_URL from .env)
-	set -a && . ./.env && set +a && npx supabase db push --db-url "$$DB_URL" --debug
+	npx supabase db push
 
 db-seed: ## Seed the database with test data
 	npx supabase db reset --no-migrations && npx supabase migration up
