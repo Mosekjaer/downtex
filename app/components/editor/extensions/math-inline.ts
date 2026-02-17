@@ -1,31 +1,38 @@
-import { Node, InputRule } from '@tiptap/core'
+import { Node, InputRule } from "@tiptap/core";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+
+import { MathInlineView } from "../node-views/MathInlineView";
 
 export const MathInline = Node.create({
-  name: 'mathInline',
+  name: "mathInline",
 
   inline: true,
-  group: 'inline',
+  group: "inline",
   atom: true,
 
   addAttributes() {
     return {
       latex: {
-        default: '',
-        parseHTML: (element) => element.getAttribute('data-latex') || '',
+        default: "",
+        parseHTML: (element) => element.getAttribute("data-latex") || "",
       },
-    }
+    };
   },
 
   parseHTML() {
     return [
       {
-        tag: 'span.math-inline[data-latex]',
+        tag: "span.math-inline[data-latex]",
       },
-    ]
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['span', { class: 'math-inline', 'data-latex': HTMLAttributes.latex }]
+    return ["span", { class: "math-inline", "data-latex": HTMLAttributes.latex }];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(MathInlineView);
   },
 
   addInputRules() {
@@ -33,13 +40,13 @@ export const MathInline = Node.create({
       new InputRule({
         find: /\$([^$]+)\$$/,
         handler: ({ state, range, match }) => {
-          const latex = match[1]
-          const { tr } = state
-          const node = this.type.create({ latex })
+          const latex = match[1];
+          const { tr } = state;
+          const node = this.type.create({ latex });
 
-          tr.replaceWith(range.from, range.to, node)
+          tr.replaceWith(range.from, range.to, node);
         },
       }),
-    ]
+    ];
   },
-})
+});
