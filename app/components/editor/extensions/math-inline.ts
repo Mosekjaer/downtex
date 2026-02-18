@@ -37,12 +37,23 @@ export const MathInline = Node.create({
 
   addInputRules() {
     return [
+      // $content$ → inline math with content
       new InputRule({
         find: /\$([^$]+)\$$/,
         handler: ({ state, range, match }) => {
           const latex = match[1];
           const { tr } = state;
           const node = this.type.create({ latex });
+
+          tr.replaceWith(range.from, range.to, node);
+        },
+      }),
+      // $$ mid-line → empty inline math (editing mode)
+      new InputRule({
+        find: /(?<=.)\$\$$/,
+        handler: ({ state, range }) => {
+          const { tr } = state;
+          const node = this.type.create({ latex: "" });
 
           tr.replaceWith(range.from, range.to, node);
         },

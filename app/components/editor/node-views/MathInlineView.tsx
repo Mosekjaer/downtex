@@ -13,7 +13,9 @@ export function MathInlineView({ node, updateAttributes, selected }: NodeViewPro
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
-      inputRef.current.focus();
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
     }
   }, [isEditing]);
 
