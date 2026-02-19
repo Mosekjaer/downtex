@@ -35,6 +35,19 @@ export const MathBlock = Node.create({
     return ReactNodeViewRenderer(MathBlockView);
   },
 
+  addKeyboardShortcuts() {
+    return {
+      "Alt-Shift-m": () => {
+        this.editor
+          .chain()
+          .focus()
+          .insertContent({ type: "mathBlock", attrs: { latex: "" } })
+          .run();
+        return true;
+      },
+    };
+  },
+
   addInputRules() {
     return [
       new InputRule({

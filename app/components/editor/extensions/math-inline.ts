@@ -35,6 +35,19 @@ export const MathInline = Node.create({
     return ReactNodeViewRenderer(MathInlineView);
   },
 
+  addKeyboardShortcuts() {
+    return {
+      "Alt-m": () => {
+        this.editor
+          .chain()
+          .focus()
+          .insertContent({ type: "mathInline", attrs: { latex: "" } })
+          .run();
+        return true;
+      },
+    };
+  },
+
   addInputRules() {
     return [
       // $content$ → inline math with content
