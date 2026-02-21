@@ -1,6 +1,7 @@
-import { Extension } from "@tiptap/core";
+import { Extension, findParentNode } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 
-export type TableStyleValue = "default" | "academic" | "striped" | "bordered" | "modern";
+export type TableStyleValue = "default" | "minimal" | "elegant" | "striped" | "research";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -57,9 +58,52 @@ export const TableStyle = Extension.create({
     return {
       setTableStyle:
         (style: TableStyleValue) =>
-        ({ commands }) => {
-          return commands.updateAttributes("table", { tableStyle: style });
+        ({ state, dispatch }) => {
+          const tableNode = findParentNode((node) => node.type.name === "table")(state.selection);
+          if (!tableNode) return false;
+
+          if (dispatch) {
+            const { tr } = state;
+            tr.setNodeMarkup(tableNode.pos, undefined, {
+              ...tableNode.node.attrs,
+              tableStyle: style,
+            });
+            dispatch(tr);
+          }
+
+          return true;
         },
     };
+  },
+
+  addProseMirrorPlugins() {
+    const pluginKey = new PluginKey("tableStyleSync");
+
+    return [
+      new Plugin({
+        key: pluginKey,
+        view: () => ({
+          update: (view) => {
+            view.state.doc.descendants((node, pos) => {
+              if (node.type.name === "table") {
+                const dom = view.nodeDOM(pos);
+                if (dom instanceof HTMLElement) {
+                  const tableEl = dom.tagName === "TABLE" ? dom : dom.querySelector("table");
+                  if (tableEl) {
+                    const style = (node.attrs.tableStyle as string) || "default";
+                    for (const cls of [...tableEl.classList]) {
+                      if (cls.startsWith("table-style-")) tableEl.classList.remove(cls);
+                    }
+                    if (style !== "default") {
+                      tableEl.classList.add(`table-style-${style}`);
+                    }
+                  }
+                }
+              }
+            });
+          },
+        }),
+      }),
+    ];
   },
 });

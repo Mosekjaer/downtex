@@ -24,6 +24,9 @@ import { Footnote } from "./extensions/footnote";
 import { Figure } from "./extensions/figure";
 import { DocumentMention } from "./extensions/document-mention";
 import { SectionReference } from "./extensions/section-reference";
+import { FontFamily } from "@tiptap/extension-font-family";
+import { FontSize } from "./extensions/font-size";
+import { LineHeight } from "./extensions/line-height";
 import { ParagraphSpacing } from "./extensions/paragraph-spacing";
 import { Indent } from "./extensions/indent";
 import { LetterSpacing } from "./extensions/letter-spacing";
@@ -109,6 +112,8 @@ export function Editor({
       SectionReference,
       // Text formatting extensions
       TextStyle,
+      FontFamily,
+      FontSize,
       Color,
       TextAlign.configure({
         types: ["heading", "paragraph"],
@@ -118,6 +123,7 @@ export function Editor({
       Subscript,
       Highlight.configure({ multicolor: true }),
       // Custom formatting extensions
+      LineHeight,
       ParagraphSpacing,
       Indent,
       LetterSpacing,

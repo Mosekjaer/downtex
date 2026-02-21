@@ -10,10 +10,10 @@ interface TableStylePickerProps {
 
 const TABLE_STYLES: readonly { value: TableStyleValue; label: string; description: string }[] = [
   { value: "default", label: "Default", description: "Standard table with borders" },
-  { value: "academic", label: "Academic", description: "Booktabs-style minimal rules" },
+  { value: "minimal", label: "Minimal", description: "Clean, borderless with header divider" },
+  { value: "elegant", label: "Elegant", description: "Rounded corners, soft header tint" },
   { value: "striped", label: "Striped", description: "Alternating row backgrounds" },
-  { value: "bordered", label: "Bordered", description: "Full grid borders" },
-  { value: "modern", label: "Modern", description: "Colored header with clean body" },
+  { value: "research", label: "Research", description: "LaTeX booktabs three-rule style" },
 ];
 
 export function TableStylePicker({ editor }: TableStylePickerProps) {

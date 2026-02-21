@@ -14,15 +14,15 @@ interface FontGroup {
 const FONT_GROUPS: FontGroup[] = [
   {
     label: "Serif",
-    fonts: ["Georgia", "Merriweather", "Playfair Display", "Lora"],
+    fonts: ["Times New Roman", "Georgia", "Cambria", "Merriweather", "Playfair Display", "Lora"],
   },
   {
     label: "Sans-serif",
-    fonts: ["Inter", "Open Sans", "Roboto"],
+    fonts: ["Arial", "Calibri", "Inter", "Open Sans", "Roboto"],
   },
   {
     label: "Monospace",
-    fonts: ["JetBrains Mono", "Fira Code"],
+    fonts: ["JetBrains Mono", "Fira Code", "Courier New"],
   },
 ] as const;
 
