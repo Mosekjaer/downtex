@@ -5,7 +5,7 @@ interface RecentDocument {
   id: string;
   title: string;
   updated_at: string;
-  folder_id: string;
+  folder_id: string | null;
 }
 
 interface Folder {
