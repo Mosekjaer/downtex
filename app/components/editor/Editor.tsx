@@ -10,6 +10,12 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { Image } from "@tiptap/extension-image";
 import { Collaboration } from "@tiptap/extension-collaboration";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
+import { TextAlign } from "@tiptap/extension-text-align";
+import { Superscript } from "@tiptap/extension-superscript";
+import { Subscript } from "@tiptap/extension-subscript";
+import { Highlight } from "@tiptap/extension-highlight";
 import { common, createLowlight } from "lowlight";
 import { Toolbar } from "./toolbar/Toolbar";
 import { MathInline } from "./extensions/math-inline";
@@ -18,6 +24,14 @@ import { Footnote } from "./extensions/footnote";
 import { Figure } from "./extensions/figure";
 import { DocumentMention } from "./extensions/document-mention";
 import { SectionReference } from "./extensions/section-reference";
+import { FontFamily } from "@tiptap/extension-font-family";
+import { FontSize } from "./extensions/font-size";
+import { LineHeight } from "./extensions/line-height";
+import { ParagraphSpacing } from "./extensions/paragraph-spacing";
+import { Indent } from "./extensions/indent";
+import { LetterSpacing } from "./extensions/letter-spacing";
+import { TableStyle } from "./extensions/table-style";
+import { TableCellBackground } from "./extensions/table-cell-bg";
 import { ImagePicker } from "~/components/modals/ImagePicker";
 import { FigurePicker } from "~/components/modals/FigurePicker";
 import {
@@ -96,6 +110,26 @@ export function Editor({
       Figure,
       DocumentMention,
       SectionReference,
+      // Text formatting extensions
+      TextStyle,
+      FontFamily,
+      FontSize,
+      Color,
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
+        alignments: ["left", "center", "right", "justify"],
+      }),
+      Superscript,
+      Subscript,
+      Highlight.configure({ multicolor: true }),
+      // Custom formatting extensions
+      LineHeight,
+      ParagraphSpacing,
+      Indent,
+      LetterSpacing,
+      // Table enhancement extensions
+      TableStyle,
+      TableCellBackground,
       Collaboration.configure({
         document: yjsDoc,
       }),
@@ -104,6 +138,23 @@ export function Editor({
       attributes: {
         class: "editor-content focus:outline-none min-h-[800px]",
         style: "font-family: Georgia, serif;",
+      },
+      transformPastedHTML(html) {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        for (const el of doc.querySelectorAll("[style]")) {
+          const s = (el as HTMLElement).style;
+          const keep: string[] = [];
+          if (s.fontWeight) keep.push(`font-weight: ${s.fontWeight}`);
+          if (s.fontStyle) keep.push(`font-style: ${s.fontStyle}`);
+          if (s.color) keep.push(`color: ${s.color}`);
+          if (s.fontSize) keep.push(`font-size: ${s.fontSize}`);
+          if (s.fontFamily) keep.push(`font-family: ${s.fontFamily}`);
+          if (s.textAlign) keep.push(`text-align: ${s.textAlign}`);
+          if (s.backgroundColor) keep.push(`background-color: ${s.backgroundColor}`);
+          el.setAttribute("style", keep.length > 0 ? keep.join("; ") : "");
+          if (!el.getAttribute("style")) el.removeAttribute("style");
+        }
+        return doc.body.innerHTML;
       },
     },
     onUpdate: () => {

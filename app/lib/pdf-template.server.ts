@@ -1,6 +1,55 @@
 import katex from "katex";
 import pdfCss from "../styles/pdf-export.css?raw";
 
+// ---- PDF-embedded styles ----
+
+const pdfFontFaces = `
+@font-face { font-family: "Inter"; font-weight: 400; src: url("/fonts/inter/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 700; src: url("/fonts/inter/700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: italic; font-weight: 400; src: url("/fonts/inter/400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Merriweather"; font-weight: 400; src: url("/fonts/merriweather/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Merriweather"; font-weight: 700; src: url("/fonts/merriweather/700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Merriweather"; font-style: italic; font-weight: 400; src: url("/fonts/merriweather/400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Open Sans"; font-weight: 400; src: url("/fonts/open-sans/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Open Sans"; font-weight: 700; src: url("/fonts/open-sans/700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Open Sans"; font-style: italic; font-weight: 400; src: url("/fonts/open-sans/400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Roboto"; font-weight: 400; src: url("/fonts/roboto/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Roboto"; font-weight: 700; src: url("/fonts/roboto/700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Roboto"; font-style: italic; font-weight: 400; src: url("/fonts/roboto/400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Playfair Display"; font-weight: 400; src: url("/fonts/playfair-display/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Playfair Display"; font-weight: 700; src: url("/fonts/playfair-display/700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Playfair Display"; font-style: italic; font-weight: 400; src: url("/fonts/playfair-display/400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Lora"; font-weight: 400; src: url("/fonts/lora/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Lora"; font-weight: 700; src: url("/fonts/lora/700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Lora"; font-style: italic; font-weight: 400; src: url("/fonts/lora/400-italic.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url("/fonts/jetbrains-mono/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; src: url("/fonts/jetbrains-mono/700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Fira Code"; font-weight: 400; src: url("/fonts/fira-code/400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Fira Code"; font-weight: 700; src: url("/fonts/fira-code/700-normal.woff2") format("woff2"); }
+`;
+
+const pdfTableStyles = `
+table.table-style-minimal th, table.table-style-minimal td { border: none; background: transparent; }
+table.table-style-minimal th { font-weight: 600; border-bottom: 2px solid #27272a; padding-bottom: 0.5em; }
+table.table-style-minimal td { border-bottom: 1px solid #f4f4f5; }
+table.table-style-minimal tbody tr:last-child td { border-bottom: none; }
+table.table-style-elegant { border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden; }
+table.table-style-elegant th, table.table-style-elegant td { border: none; border-bottom: 1px solid #e4e4e7; }
+table.table-style-elegant th { background: #fafaf9; font-weight: 600; color: #3f3f46; }
+table.table-style-elegant td { background: white; }
+table.table-style-elegant tbody tr:last-child td { border-bottom: none; }
+table.table-style-striped th, table.table-style-striped td { border: none; border-bottom: 1px solid #e4e4e7; }
+table.table-style-striped th { background: #27272a; color: #fafafa; font-weight: 600; }
+table.table-style-striped td { background: white; }
+table.table-style-striped tbody tr:nth-child(odd) td { background: #fafafa; }
+table.table-style-research { border-top: 2px solid #18181b; border-bottom: 2px solid #18181b; }
+table.table-style-research th, table.table-style-research td { border: none; background: transparent; padding: 0.45em 0.7em; }
+table.table-style-research th { font-weight: 600; border-bottom: 1px solid #18181b; }
+table.table-style-research td { border-bottom: 1px solid #e4e4e7; }
+table.table-style-research tbody tr:last-child td { border-bottom: none; }
+mark { padding: 0.1em 0.2em; border-radius: 2px; }
+`;
+
 // ---- Public API ----
 
 export interface DocumentData {
@@ -27,7 +76,7 @@ export function renderDocumentToHtml(doc: DocumentData): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escapeHtml(doc.title)}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.38/dist/katex.min.css" crossorigin="anonymous" />
-  <style>${pdfCss}</style>
+  <style>${pdfFontFaces}${pdfTableStyles}${pdfCss}</style>
 </head>
 <body>
 
@@ -76,6 +125,34 @@ interface ProseMirrorMark {
 
 const footnoteStore: string[] = [];
 
+// ---- Style helpers ----
+
+function buildBlockStyle(node: ProseMirrorNode): string {
+  const styles: string[] = [];
+  const textAlign = node.attrs?.textAlign as string | undefined;
+  if (textAlign && textAlign !== "left") styles.push(`text-align: ${textAlign}`);
+  const marginTop = node.attrs?.marginTop as string | undefined;
+  if (marginTop) styles.push(`margin-top: ${marginTop}`);
+  const marginBottom = node.attrs?.marginBottom as string | undefined;
+  if (marginBottom) styles.push(`margin-bottom: ${marginBottom}`);
+  const indent = node.attrs?.indent as number | undefined;
+  if (indent && indent > 0) styles.push(`padding-left: ${indent * 2}em`);
+  if (styles.length === 0) return "";
+  return ` style="${styles.join("; ")}"`;
+}
+
+function buildTextStyleSpan(html: string, mark: ProseMirrorMark): string {
+  const styles: string[] = [];
+  const attrs = mark.attrs ?? {};
+  if (attrs.fontFamily) styles.push(`font-family: ${attrs.fontFamily as string}`);
+  if (attrs.fontSize) styles.push(`font-size: ${attrs.fontSize as string}`);
+  if (attrs.color) styles.push(`color: ${attrs.color as string}`);
+  if (attrs.letterSpacing) styles.push(`letter-spacing: ${attrs.letterSpacing as string}`);
+  if (attrs.lineHeight) styles.push(`line-height: ${attrs.lineHeight as string}`);
+  if (styles.length === 0) return html;
+  return `<span style="${styles.join("; ")}">${html}</span>`;
+}
+
 // ---- Node rendering ----
 
 function renderContent(node: ProseMirrorNode): string {
@@ -85,15 +162,18 @@ function renderContent(node: ProseMirrorNode): string {
 
 function renderNode(node: ProseMirrorNode): string {
   switch (node.type) {
-    case "paragraph":
-      return `<p>${renderInline(node)}</p>`;
+    case "paragraph": {
+      const pStyle = buildBlockStyle(node);
+      return `<p${pStyle}>${renderInline(node)}</p>`;
+    }
 
     case "heading": {
       const level = (node.attrs?.level as number) ?? 1;
       const tag = `h${Math.min(level, 6)}`;
       const text = getPlainText(node);
       const id = slugify(text);
-      return `<${tag} id="${escapeAttr(id)}">${renderInline(node)}</${tag}>`;
+      const hStyle = buildBlockStyle(node);
+      return `<${tag} id="${escapeAttr(id)}"${hStyle}>${renderInline(node)}</${tag}>`;
     }
 
     case "bulletList":
@@ -218,6 +298,14 @@ function renderText(node: ProseMirrorNode): string {
         case "subscript":
           html = `<sub>${html}</sub>`;
           break;
+        case "textStyle":
+          html = buildTextStyleSpan(html, mark);
+          break;
+        case "highlight": {
+          const hlColor = (mark.attrs?.color as string) ?? "#ffeb3b";
+          html = `<mark style="background-color: ${hlColor}">${html}</mark>`;
+          break;
+        }
       }
     }
   }
@@ -235,10 +323,7 @@ function renderListItems(node: ProseMirrorNode): string {
 function renderListItemContent(node: ProseMirrorNode): string {
   if (!node.content) return "";
   // If a list item only contains a single paragraph, unwrap it for cleaner output
-  if (
-    node.content.length === 1 &&
-    node.content[0].type === "paragraph"
-  ) {
+  if (node.content.length === 1 && node.content[0].type === "paragraph") {
     return renderInline(node.content[0]);
   }
   return node.content.map((child) => renderNode(child)).join("\n");
@@ -249,22 +334,24 @@ function renderListItemContent(node: ProseMirrorNode): string {
 function renderTable(node: ProseMirrorNode): string {
   if (!node.content) return "<table></table>";
 
-  let html = "<figure class=\"table-figure\"><table>\n";
+  const tableStyle = (node.attrs?.tableStyle as string) ?? "default";
+  const tableClass =
+    tableStyle !== "default" ? ` class="table-style-${escapeAttr(tableStyle)}"` : "";
+  let html = `<figure class="table-figure"><table${tableClass}>\n`;
   let isFirstRow = true;
 
   for (const row of node.content) {
     if (row.type !== "tableRow") continue;
 
     const cells = row.content ?? [];
-    const isHeader =
-      isFirstRow && cells.every((c) => c.type === "tableHeader");
+    const isHeader = isFirstRow && cells.every((c) => c.type === "tableHeader");
 
     if (isHeader) {
       html += "<thead><tr>";
       for (const cell of cells) {
         const colspan = (cell.attrs?.colspan as number) ?? 1;
         const rowspan = (cell.attrs?.rowspan as number) ?? 1;
-        const attrs = buildSpanAttrs(colspan, rowspan);
+        const attrs = buildCellAttrs(colspan, rowspan, cell);
         html += `<th${attrs}>${renderCellContent(cell)}</th>`;
       }
       html += "</tr></thead>\n<tbody>\n";
@@ -275,7 +362,7 @@ function renderTable(node: ProseMirrorNode): string {
         const tag = cell.type === "tableHeader" ? "th" : "td";
         const colspan = (cell.attrs?.colspan as number) ?? 1;
         const rowspan = (cell.attrs?.rowspan as number) ?? 1;
-        const attrs = buildSpanAttrs(colspan, rowspan);
+        const attrs = buildCellAttrs(colspan, rowspan, cell);
         html += `<${tag}${attrs}>${renderCellContent(cell)}</${tag}>`;
       }
       html += "</tr>\n";
@@ -288,10 +375,12 @@ function renderTable(node: ProseMirrorNode): string {
   return html;
 }
 
-function buildSpanAttrs(colspan: number, rowspan: number): string {
+function buildCellAttrs(colspan: number, rowspan: number, cell: ProseMirrorNode): string {
   let s = "";
   if (colspan > 1) s += ` colspan="${colspan}"`;
   if (rowspan > 1) s += ` rowspan="${rowspan}"`;
+  const bg = cell.attrs?.backgroundColor as string | undefined;
+  if (bg) s += ` style="background-color: ${bg}"`;
   return s;
 }
 
@@ -341,8 +430,7 @@ function renderToc(headings: Heading[]): string {
 function renderFootnotes(): string {
   if (footnoteStore.length === 0) return "";
 
-  let html =
-    '<div class="footnotes">\n<h2>Notes</h2>\n<ol>\n';
+  let html = '<div class="footnotes">\n<h2>Notes</h2>\n<ol>\n';
   for (let i = 0; i < footnoteStore.length; i++) {
     const idx = i + 1;
     html += `  <li id="fn-${idx}">${escapeHtml(footnoteStore[i])} <a href="#fnref-${idx}">\u21A9</a></li>\n`;
@@ -395,10 +483,7 @@ function slugify(text: string): string {
     .trim();
 }
 
-function walkNodes(
-  node: ProseMirrorNode,
-  visitor: (n: ProseMirrorNode) => void,
-): void {
+function walkNodes(node: ProseMirrorNode, visitor: (n: ProseMirrorNode) => void): void {
   visitor(node);
   if (node.content) {
     for (const child of node.content) {

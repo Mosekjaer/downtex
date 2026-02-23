@@ -13,7 +13,7 @@ export interface Folder {
 export interface Document {
   id: string;
   title: string;
-  folder_id: string;
+  folder_id: string | null;
   updated_at: string;
 }
 
@@ -33,7 +33,7 @@ interface ContextMenuState {
   y: number;
   type: "folder" | "document";
   id: string;
-  folderId?: string;
+  folderId?: string | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -561,10 +561,14 @@ export function FolderTree({
   }
 
   const rootFolders = childFolders(null);
+  const rootDocs = documents
+    .filter((d) => d.folder_id === null)
+    .sort((a, b) => a.title.localeCompare(b.title));
 
   return (
     <div className="relative">
       {rootFolders.map((f) => renderFolder(f, 0))}
+      {rootDocs.map((doc) => renderDocument(doc, 0))}
 
       {/* Context menu */}
       {ctxMenu && (

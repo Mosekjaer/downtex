@@ -24,7 +24,7 @@ interface Folder {
 interface Document {
   id: string;
   title: string;
-  folder_id: string;
+  folder_id: string | null;
   updated_at: string;
 }
 
@@ -121,7 +121,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     }
     case "create-document": {
       requireRole(role, "editor");
-      const folderId = formData.get("folderId") as string;
+      const folderId = (formData.get("folderId") as string) || null;
       const title = (formData.get("title") as string) || "Untitled";
       const { data } = await supabase
         .from("documents")
@@ -151,7 +151,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     case "move-document": {
       requireRole(role, "editor");
       const documentId = formData.get("documentId") as string;
-      const targetFolderId = formData.get("targetFolderId") as string;
+      const targetFolderId = (formData.get("targetFolderId") as string) || null;
       await supabase.from("documents").update({ folder_id: targetFolderId }).eq("id", documentId);
       return { ok: true };
     }
@@ -279,22 +279,10 @@ export default function WorkspaceLayout() {
       setShowNewDocInput(false);
       return;
     }
-    if (folders.length > 0) {
-      const rootFolder = folders.find((f) => f.parent_folder_id === null) ?? folders[0];
-      fetcher.submit(
-        { intent: "create-document", folderId: rootFolder.id, title: newDocTitle.trim() },
-        { method: "post", action: workspaceActionUrl },
-      );
-    } else {
-      fetcher.submit(
-        {
-          intent: "create-folder-and-document",
-          folderName: "Documents",
-          title: newDocTitle.trim(),
-        },
-        { method: "post", action: workspaceActionUrl },
-      );
-    }
+    fetcher.submit(
+      { intent: "create-document", title: newDocTitle.trim() },
+      { method: "post", action: workspaceActionUrl },
+    );
     setShowNewDocInput(false);
     setNewDocTitle("");
   }
