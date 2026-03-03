@@ -22,6 +22,9 @@ export default [
 
   // API routes
   route("api/export/:docId", "routes/api.export.$docId.tsx"),
+  route("api/github-repos", "routes/api.github-repos.tsx"),
+  route("api/github-tree/:repoId", "routes/api.github-tree.$repoId.tsx"),
+  route("api/render-figure/:figureId", "routes/api.render-figure.$figureId.tsx"),
   route("api/search-documents", "routes/api.search-documents.tsx"),
   route("api/snapshot/:docId", "routes/api.snapshot.$docId.tsx"),
 

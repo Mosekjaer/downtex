@@ -1,4 +1,5 @@
 import { createServerClient, parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
+import { createClient as createBareClient } from "@supabase/supabase-js";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { env } from "./env.server";
 
@@ -76,15 +77,11 @@ export function createSupabaseClient(request: Request): {
   return { supabase, headers };
 }
 
-/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/consistent-type-imports */
 export function createServiceRoleClient(): SupabaseClient {
-  const { createClient } =
-    require("@supabase/supabase-js") as typeof import("@supabase/supabase-js");
-  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+  return createBareClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
-/* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/consistent-type-imports */
 
 export async function requireAuth(request: Request) {
   const { supabase, headers, cookieHeader } = createClient(request);

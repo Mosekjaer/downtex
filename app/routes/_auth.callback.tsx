@@ -18,16 +18,30 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   // Capture and encrypt the GitHub OAuth token for later API use
-  if (data.session?.provider_token) {
+  const providerToken = data.session?.provider_token;
+  // eslint-disable-next-line no-console
+  console.log(
+    "[callback] provider_token present:",
+    !!providerToken,
+    "provider:",
+    data.session?.user?.app_metadata?.provider,
+    "user:",
+    data.session?.user?.id,
+  );
+
+  if (providerToken) {
     try {
-      const encryptedToken = encrypt(data.session.provider_token);
+      const encryptedToken = encrypt(providerToken).toString("base64");
       const serviceClient = createServiceRoleClient();
-      await serviceClient
+      const { error: updateError } = await serviceClient
         .from("users")
         .update({ github_token_encrypted: encryptedToken })
         .eq("id", data.session.user.id);
-    } catch {
-      // Non-fatal: token capture failure should not block login
+      // eslint-disable-next-line no-console
+      console.log("[callback] token save:", updateError ? updateError.message : "ok");
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[callback] token save exception:", e);
     }
   }
 
