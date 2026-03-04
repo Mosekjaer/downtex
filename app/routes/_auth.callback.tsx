@@ -31,7 +31,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   if (providerToken) {
     try {
-      const encryptedToken = encrypt(providerToken).toString("base64");
+      const encryptedBuf = encrypt(providerToken);
+      // Store as hex-escaped bytea literal so PostgREST round-trips correctly
+      const encryptedToken = "\\x" + encryptedBuf.toString("hex");
       const serviceClient = createServiceRoleClient();
       const { error: updateError } = await serviceClient
         .from("users")

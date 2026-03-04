@@ -12,7 +12,7 @@ export default function LoginPage() {
         redirectTo: `${window.location.origin}/callback`,
         // Request repo scope for GitHub so we capture the provider_token
         // for accessing repository contents (figures, drawio files, etc.)
-        ...(provider === "github" ? { scopes: "repo" } : {}),
+        ...(provider === "github" ? { scopes: "repo", queryParams: { prompt: "consent" } } : {}),
       },
     });
   };

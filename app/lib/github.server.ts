@@ -187,7 +187,10 @@ export async function getUserGitHubToken(
   if (!data?.github_token_encrypted) return null;
 
   try {
-    const token = decrypt(Buffer.from(data.github_token_encrypted, "base64"));
+    // PostgREST returns bytea as hex-escaped string like "\x0a1b..."
+    const raw = data.github_token_encrypted as string;
+    const hex = raw.startsWith("\\x") ? raw.slice(2) : raw;
+    const token = decrypt(Buffer.from(hex, "hex"));
 
     // Validate the token is still active with a lightweight API call
     const res = await fetch(`${GITHUB_API_BASE}/user`, { headers: headers(token) });
