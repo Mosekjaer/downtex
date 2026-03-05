@@ -18,36 +18,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
   }
 
   // Capture and encrypt the GitHub OAuth token for later API use
-  const providerToken = data.session?.provider_token;
-  // eslint-disable-next-line no-console
-  console.log(
-    "[callback] provider_token present:",
-    !!providerToken,
-    "provider:",
-    data.session?.user?.app_metadata?.provider,
-    "user:",
-    data.session?.user?.id,
-  );
-
-  if (providerToken) {
+  if (data.session?.provider_token) {
     try {
-      const encryptedBuf = encrypt(providerToken);
-      // Store as hex-escaped bytea literal so PostgREST round-trips correctly
+      const encryptedBuf = encrypt(data.session.provider_token);
       const encryptedToken = "\\x" + encryptedBuf.toString("hex");
       const serviceClient = createServiceRoleClient();
-      const { error: updateError } = await serviceClient
+      await serviceClient
         .from("users")
         .update({ github_token_encrypted: encryptedToken })
         .eq("id", data.session.user.id);
-      // eslint-disable-next-line no-console
-      console.log("[callback] token save:", updateError ? updateError.message : "ok");
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[callback] token save exception:", e);
+    } catch {
+      // Non-fatal: token capture failure should not block login
     }
   }
 
-  return redirect("/", { headers });
+  // Support redirect_to param for flows like "Connect GitHub" from settings
+  const redirectTo = url.searchParams.get("redirect_to") ?? "/";
+  return redirect(redirectTo, { headers });
 }
 
 export default function CallbackPage() {
