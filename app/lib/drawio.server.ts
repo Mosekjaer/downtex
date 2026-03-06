@@ -1,11 +1,12 @@
 /**
  * Draw.io rendering utilities.
  *
- * Constructs URLs for the draw.io embed viewer and raw GitHub file access,
- * plus server-side .drawio → SVG conversion via Puppeteer + mxGraph.
+ * Converts .drawio XML → SVG via the jgraph/export-server (preferred)
+ * or Puppeteer + mxGraph viewer (fallback for local dev).
  */
 
 import puppeteer from "puppeteer";
+import { env } from "~/lib/env.server";
 
 /**
  * Build the raw.githubusercontent.com URL for a file in a GitHub repo.
@@ -15,37 +16,50 @@ export function getDrawioRawUrl(repo: string, path: string, branch = "main"): st
 }
 
 /**
- * Build the draw.io embed viewer URL that renders a .drawio file hosted on
- * GitHub via an iframe.
+ * Convert a .drawio XML string to SVG.
  *
- * URL format:
- *   https://viewer.diagrams.net/?tags={}&target=blank&highlight=0000ff
- *     &edit=_blank&layers=1&nav=1&title=<filename>#U<rawUrl>
+ * Tries the jgraph/export-server first (DRAWIO_EXPORT_URL),
+ * falls back to Puppeteer-based rendering.
  */
-export function getDrawioEmbedUrl(repo: string, path: string, branch = "main"): string {
-  const rawUrl = getDrawioRawUrl(repo, path, branch);
-  const filename = path.split("/").pop() ?? "diagram";
-
-  return (
-    `https://viewer.diagrams.net/` +
-    `?tags=%7B%7D` +
-    `&target=blank` +
-    `&highlight=0000ff` +
-    `&edit=_blank` +
-    `&layers=1` +
-    `&nav=1` +
-    `&title=${encodeURIComponent(filename)}` +
-    `#U${encodeURIComponent(rawUrl)}`
-  );
+export async function convertDrawioToSvg(drawioXml: string): Promise<Buffer> {
+  if (env.DRAWIO_EXPORT_URL) {
+    return convertDrawioViaExportServer(drawioXml);
+  }
+  return convertDrawioViaPuppeteer(drawioXml);
 }
 
 /**
- * Convert a .drawio XML string to SVG using Puppeteer + mxGraph.
- *
- * Spins up a headless browser, loads the mxGraph client library,
- * injects the drawio XML, renders the diagram, and extracts the SVG.
+ * Convert via the jgraph/export-server Docker container.
+ * POST /export with format=png and xml=<drawio XML>.
+ * Note: the export server supports png/pdf/jpg but NOT svg.
  */
-export async function convertDrawioToSvg(drawioXml: string): Promise<Buffer> {
+async function convertDrawioViaExportServer(drawioXml: string): Promise<Buffer> {
+  const url = `${env.DRAWIO_EXPORT_URL}/export`;
+
+  const body = new URLSearchParams({
+    format: "png",
+    xml: drawioXml,
+  });
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Draw.io export server error (${res.status}): ${text}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+/**
+ * Fallback: convert via Puppeteer + mxGraph viewer (for local dev without Docker).
+ */
+async function convertDrawioViaPuppeteer(drawioXml: string): Promise<Buffer> {
   const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium-browser";
 
   const browser = await puppeteer.launch({
@@ -57,7 +71,6 @@ export async function convertDrawioToSvg(drawioXml: string): Promise<Buffer> {
   try {
     const page = await browser.newPage();
 
-    // Minimal HTML page that loads mxGraph and renders the diagram to SVG
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -79,17 +92,14 @@ export async function convertDrawioToSvg(drawioXml: string): Promise<Buffer> {
       timeout: 30_000,
     });
 
-    // Wait for the mxGraph viewer to render
     await page.waitForSelector(".geDiagramContainer svg", { timeout: 15_000 });
 
-    // Extract the SVG element
     const svgContent = await page.evaluate(() => {
       const svg = document.querySelector(".geDiagramContainer svg");
       if (!svg) throw new Error("SVG element not found after render");
       return svg.outerHTML;
     });
 
-    // Wrap in a standalone SVG document
     const fullSvg = `<?xml version="1.0" encoding="UTF-8"?>\n${svgContent}`;
     return Buffer.from(fullSvg, "utf-8");
   } finally {

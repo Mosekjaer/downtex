@@ -71,6 +71,7 @@ export function Editor({
   connectedRepos = [],
 }: EditorProps) {
   const fetcher = useFetcher();
+  const figureFetcher = useFetcher();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [zoom, setZoom] = useState(100);
   const [showImagePicker, setShowImagePicker] = useState(false);
@@ -240,15 +241,27 @@ export function Editor({
               if (row.status === "error") {
                 attrs.figureStatus = "error";
               } else if (row.cached_image_path) {
-                // Build a signed URL by fetching it — for now use the storage path directly
-                // The render route already stored a signed URL; we re-derive from storage
                 const imageAttr = row.cached_image_format === "svg" ? "svgUrl" : "imageUrl";
-                // Construct the Supabase storage URL
-                const { data } = supabase.storage
+                // Create a signed URL since the bucket is private
+                void supabase.storage
                   .from("figures")
-                  .getPublicUrl(row.cached_image_path);
-                attrs[imageAttr] = data.publicUrl;
-                attrs.figureStatus = "active";
+                  .createSignedUrl(row.cached_image_path, 60 * 60)
+                  .then(({ data: urlData }) => {
+                    if (!urlData?.signedUrl) return;
+                    const finalAttrs = {
+                      ...node.attrs,
+                      [imageAttr]: urlData.signedUrl,
+                      figureStatus: "active",
+                    };
+                    editor
+                      .chain()
+                      .command(({ tr }) => {
+                        tr.setNodeMarkup(pos, undefined, finalAttrs);
+                        return true;
+                      })
+                      .run();
+                  });
+                return false;
               }
 
               if (Object.keys(attrs).length > 0) {
@@ -260,7 +273,7 @@ export function Editor({
                   })
                   .run();
               }
-              return false; // stop traversal for this branch
+              return false;
             }
             return true;
           });
@@ -299,10 +312,17 @@ export function Editor({
   const handleInsertFigure = useCallback(
     (repo: string, path: string, fileType: string, workspaceRepositoryId?: string) => {
       const figureId = crypto.randomUUID();
+
+      // Insert with placeholder — server will download, store, and return a signed URL
       editor
         ?.chain()
         .focus()
-        .insertFigure({ figureId, githubRepo: repo, githubPath: path, fileType })
+        .insertFigure({
+          figureId,
+          githubRepo: repo,
+          githubPath: path,
+          fileType,
+        })
         .run();
 
       // Persist figure metadata to DB
@@ -315,10 +335,41 @@ export function Editor({
       if (workspaceRepositoryId) {
         formData.set("workspaceRepositoryId", workspaceRepositoryId);
       }
-      fetcher.submit(formData, { method: "POST" });
+      figureFetcher.submit(formData, { method: "POST" });
     },
-    [editor, fetcher],
+    [editor, figureFetcher],
   );
+
+  // When a figure render completes, update the editor node with the cached URL
+  useEffect(() => {
+    const data = figureFetcher.data as {
+      ok?: boolean;
+      blockId?: string;
+      cachedUrl?: string;
+      cachedFormat?: string;
+    } | null;
+    if (!data?.ok || !data.blockId || !data.cachedUrl || !editor) return;
+
+    const imageAttr = data.cachedFormat === "svg" ? "svgUrl" : "imageUrl";
+    const { doc } = editor.state;
+    doc.descendants((node, pos) => {
+      if (node.type.name === "figure" && node.attrs.figureId === data.blockId) {
+        editor
+          .chain()
+          .command(({ tr }) => {
+            tr.setNodeMarkup(pos, undefined, {
+              ...node.attrs,
+              [imageAttr]: data.cachedUrl,
+              figureStatus: "active",
+            });
+            return true;
+          })
+          .run();
+        return false;
+      }
+      return true;
+    });
+  }, [figureFetcher.data, editor]);
 
   const handleInsertFigureRef = useCallback(
     (figureId: string, caption: string) => {
