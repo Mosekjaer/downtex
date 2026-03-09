@@ -27,6 +27,7 @@ export default [
   route("api/render-figure/:figureId", "routes/api.render-figure.$figureId.tsx"),
   route("api/search-documents", "routes/api.search-documents.tsx"),
   route("api/snapshot/:docId", "routes/api.snapshot.$docId.tsx"),
+  route("api/upload-figure", "routes/api.upload-figure.tsx"),
 
   // Public routes
   route("render/:docId", "routes/render.$docId.tsx"),

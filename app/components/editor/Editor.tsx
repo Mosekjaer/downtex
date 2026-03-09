@@ -73,6 +73,7 @@ export function Editor({
   const fetcher = useFetcher();
   const figureFetcher = useFetcher();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
   const [zoom, setZoom] = useState(100);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showFigurePicker, setShowFigurePicker] = useState(false);
@@ -100,6 +101,68 @@ export function Editor({
     formData.set("state", base64);
     fetcher.submit(formData, { method: "POST", action: actionUrl });
   }, [editable, fetcher, yjsDoc, actionUrl]);
+
+  // Handle pasted/dropped image files — upload to Supabase and insert as figure
+  const handlePastedFile = useCallback(
+    (file: File) => {
+      const figureId = crypto.randomUUID();
+      const ext = file.type.split("/")[1] || "png";
+      const fileType = ext === "jpeg" ? "jpg" : ext;
+
+      // Insert placeholder figure node immediately
+      const currentEditor = editorRef.current;
+      if (!currentEditor) return;
+
+      currentEditor
+        .chain()
+        .focus()
+        .insertFigure({
+          figureId,
+          githubRepo: "",
+          githubPath: `pasted.${fileType}`,
+          fileType,
+        })
+        .run();
+
+      // Upload via API route
+      const formData = new FormData();
+      formData.set("file", file);
+      formData.set("workspaceId", workspaceId);
+      formData.set("documentId", documentId);
+      formData.set("blockId", figureId);
+
+      fetch("/api/upload-figure", { method: "POST", body: formData })
+        .then((res) => res.json())
+        .then(
+          (data: { ok?: boolean; cachedUrl?: string; cachedFormat?: string; blockId?: string }) => {
+            if (!data.ok || !data.cachedUrl || !data.blockId) return;
+            const ed = editorRef.current;
+            if (!ed) return;
+            const imageAttr = data.cachedFormat === "svg" ? "svgUrl" : "imageUrl";
+            ed.state.doc.descendants((node, pos) => {
+              if (node.type.name === "figure" && node.attrs.figureId === data.blockId) {
+                ed.chain()
+                  .command(({ tr }) => {
+                    tr.setNodeMarkup(pos, undefined, {
+                      ...node.attrs,
+                      [imageAttr]: data.cachedUrl,
+                      figureStatus: "active",
+                    });
+                    return true;
+                  })
+                  .run();
+                return false;
+              }
+              return true;
+            });
+          },
+        )
+        .catch(() => {
+          // Failed upload — figure stays as placeholder
+        });
+    },
+    [workspaceId, documentId],
+  );
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -153,6 +216,33 @@ export function Editor({
         class: "editor-content focus:outline-none min-h-[800px]",
         style: "font-family: Georgia, serif;",
       },
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        for (const item of items) {
+          if (item.type.startsWith("image/")) {
+            const file = item.getAsFile();
+            if (file) {
+              event.preventDefault();
+              handlePastedFile(file);
+              return true;
+            }
+          }
+        }
+        return false;
+      },
+      handleDrop(view, event) {
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return false;
+        for (const file of files) {
+          if (file.type.startsWith("image/")) {
+            event.preventDefault();
+            handlePastedFile(file);
+            return true;
+          }
+        }
+        return false;
+      },
       transformPastedHTML(html) {
         const doc = new DOMParser().parseFromString(html, "text/html");
         for (const el of doc.querySelectorAll("[style]")) {
@@ -183,6 +273,9 @@ export function Editor({
       }, 2000);
     },
   });
+
+  // Keep editorRef in sync so paste handler can access the editor
+  editorRef.current = editor;
 
   // Save on unmount and clean up
   // Use refs so the cleanup captures the correct values even with [] deps
