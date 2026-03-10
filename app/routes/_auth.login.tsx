@@ -8,7 +8,11 @@ export default function LoginPage() {
     const supabase = getSupabaseClient();
     void supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${window.location.origin}/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/callback`,
+        // Request repo scope for GitHub so we capture the provider_token
+        // for accessing repository contents (figures, drawio files, etc.)
+      },
     });
   };
 

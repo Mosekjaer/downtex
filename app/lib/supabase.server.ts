@@ -1,22 +1,54 @@
 import { createServerClient, parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createBareClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { env } from "./env.server";
 
 /**
- * Creates a Supabase client for use in loaders/actions.
- * Returns the client and a headers object that must be merged into the response
- * (it contains Set-Cookie headers for refreshed tokens).
+ * Per-request cache for getUser() results.
+ *
+ * React Router 7 creates a new Request object per loader even within the same
+ * HTTP request (single fetch), so a WeakMap<Request, …> never deduplicates.
+ * Instead we key on the raw Cookie header — all loaders in one HTTP request
+ * share the same cookies. Entries expire after 5 seconds to prevent leaks.
  */
-export function createSupabaseClient(request: Request): {
-  supabase: SupabaseClient;
-  headers: Headers;
-} {
+const userPromiseCache = new Map<string, { promise: Promise<User | null>; expiresAt: number }>();
+const CACHE_TTL_MS = 5_000;
+
+function getCachedUserPromise(
+  supabase: SupabaseClient,
+  cookieHeader: string,
+): Promise<User | null> {
+  const now = Date.now();
+
+  // Lazy cleanup of expired entries
+  if (userPromiseCache.size > 50) {
+    for (const [key, entry] of userPromiseCache) {
+      if (entry.expiresAt < now) userPromiseCache.delete(key);
+    }
+  }
+
+  const cached = userPromiseCache.get(cookieHeader);
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+
+  const promise = supabase.auth.getUser().then(({ data, error }) => {
+    if (error) return null;
+    return data.user;
+  });
+
+  userPromiseCache.set(cookieHeader, { promise, expiresAt: now + CACHE_TTL_MS });
+  return promise;
+}
+
+function createClient(request: Request) {
   const headers = new Headers();
+  const cookieHeader = request.headers.get("Cookie") ?? "";
 
   const supabase = createServerClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
     cookies: {
       getAll() {
-        return parseCookieHeader(request.headers.get("Cookie") ?? "") as {
+        return parseCookieHeader(cookieHeader) as {
           name: string;
           value: string;
         }[];
@@ -29,26 +61,32 @@ export function createSupabaseClient(request: Request): {
     },
   });
 
+  return { supabase, headers, cookieHeader };
+}
+
+/**
+ * Creates a Supabase client for use in loaders/actions.
+ * Returns the client and a headers object that must be merged into the response
+ * (it contains Set-Cookie headers for refreshed tokens).
+ */
+export function createSupabaseClient(request: Request): {
+  supabase: SupabaseClient;
+  headers: Headers;
+} {
+  const { supabase, headers } = createClient(request);
   return { supabase, headers };
 }
 
-/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/consistent-type-imports */
 export function createServiceRoleClient(): SupabaseClient {
-  const { createClient } =
-    require("@supabase/supabase-js") as typeof import("@supabase/supabase-js");
-  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+  return createBareClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
-/* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/consistent-type-imports */
 
 export async function requireAuth(request: Request) {
-  const { supabase, headers } = createSupabaseClient(request);
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
+  const { supabase, headers, cookieHeader } = createClient(request);
+  const user = await getCachedUserPromise(supabase, cookieHeader);
+  if (!user) {
     throw new Response(null, { status: 302, headers: { Location: "/login" } });
   }
   return { supabase, headers, user };

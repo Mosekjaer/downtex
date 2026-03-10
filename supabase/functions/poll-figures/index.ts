@@ -20,11 +20,7 @@ interface FigureRow {
  * Fetch the current SHA of a file from the GitHub Contents API.
  * Uses the GITHUB_SERVICE_TOKEN env var for authentication.
  */
-async function getFileSha(
-  token: string,
-  repo: string,
-  path: string,
-): Promise<string | null> {
+async function getFileSha(token: string, repo: string, path: string): Promise<string | null> {
   const url = `${GITHUB_API_BASE}/repos/${repo}/contents/${encodeURIComponent(path)}`;
   const res = await fetch(url, {
     headers: {
@@ -58,17 +54,17 @@ Deno.serve(async (req: Request) => {
     const githubToken = Deno.env.get("GITHUB_SERVICE_TOKEN");
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing Supabase env vars" }),
-        { status: 500, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Missing Supabase env vars" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     if (!githubToken) {
-      return new Response(
-        JSON.stringify({ error: "Missing GITHUB_SERVICE_TOKEN env var" }),
-        { status: 500, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Missing GITHUB_SERVICE_TOKEN env var" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -82,17 +78,17 @@ Deno.serve(async (req: Request) => {
       .eq("status", "active");
 
     if (fetchError) {
-      return new Response(
-        JSON.stringify({ error: fetchError.message }),
-        { status: 500, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: fetchError.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     if (!figures || figures.length === 0) {
-      return new Response(
-        JSON.stringify({ message: "No active figures to poll", updated: 0 }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ message: "No active figures to poll", updated: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // De-duplicate by repo+path to avoid redundant GitHub API calls
@@ -160,19 +156,33 @@ Deno.serve(async (req: Request) => {
             updated_at: new Date().toISOString(),
           })
           .eq("id", fig.id);
+
+        // Trigger re-render of the figure image (fire-and-forget)
+        const appUrl = Deno.env.get("APP_URL");
+        if (appUrl) {
+          fetch(`${appUrl}/api/render-figure/${fig.id}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${supabaseServiceKey}`,
+            },
+          }).catch(() => {
+            // Non-fatal: render will be retried on next poll if it fails
+          });
+        }
+
         updatedCount++;
       }
     }
 
-    return new Response(
-      JSON.stringify({ message: "Poll complete", updated: updatedCount }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ message: "Poll complete", updated: updatedCount }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });

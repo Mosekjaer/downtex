@@ -453,3 +453,132 @@ body {
   text-align: center;
   user-select: none;
 }
+
+/* ── Figure selection & resize handles ── */
+
+/* No outline on the figure wrapper itself */
+.drawio-figure.ProseMirror-selectednode,
+.drawio-figure--selected {
+  outline: none;
+}
+
+/* Selection ring on the image container */
+.drawio-figure__image-container--selected {
+  outline: 2px solid oklch(0.59 0.2 265 / 0.6);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Resize handles */
+.figure-resize-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: oklch(0.59 0.2 265);
+  border-radius: 50%;
+  z-index: 10;
+  pointer-events: auto;
+  box-shadow: 0 0 0 2px white;
+}
+
+.figure-resize-handle--se {
+  bottom: -4px;
+  right: -4px;
+  cursor: nwse-resize;
+}
+
+.figure-resize-handle--sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: nesw-resize;
+}
+
+/* Force caption content inline next to the number prefix */
+.drawio-figure__caption-text {
+  display: inline !important;
+}
+
+/* ── Crop overlay ── */
+.figure-crop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  user-select: none;
+}
+
+.figure-crop-mask {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.figure-crop-region {
+  position: absolute;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+  cursor: move;
+}
+
+.figure-crop-grid {
+  position: absolute;
+  inset: 0;
+  /* Rule of thirds */
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+  background-size: 33.333% 33.333%;
+  pointer-events: none;
+}
+
+.figure-crop-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border: 1.5px solid rgba(0, 0, 0, 0.4);
+  border-radius: 2px;
+  z-index: 21;
+  transform: translate(-50%, -50%);
+}
+
+.figure-crop-handle--nw { cursor: nwse-resize; }
+.figure-crop-handle--ne { cursor: nesw-resize; }
+.figure-crop-handle--sw { cursor: nesw-resize; }
+.figure-crop-handle--se { cursor: nwse-resize; }
+
+.figure-crop-actions {
+  position: absolute;
+  transform: translate(-50%, 8px);
+  display: flex;
+  gap: 6px;
+  z-index: 22;
+}
+
+.figure-crop-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.figure-crop-btn--apply {
+  background: oklch(0.52 0.2 265);
+  color: white;
+}
+
+.figure-crop-btn--apply:hover {
+  background: oklch(0.46 0.17 265);
+}
+
+.figure-crop-btn--cancel {
+  background: white;
+  color: #52525b;
+  border: 1px solid #d4d4d8;
+}
+
+.figure-crop-btn--cancel:hover {
+  background: #f4f4f5;
+}

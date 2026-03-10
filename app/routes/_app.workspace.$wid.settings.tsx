@@ -8,7 +8,8 @@ import {
   type ActionFunctionArgs,
 } from "react-router";
 import { requireAuth } from "~/lib/supabase.server";
-import { getUserWorkspaceRole, requireRole } from "~/lib/permissions.server";
+import { getUserWorkspaceRole, requireRole, hasMinimumRole } from "~/lib/permissions.server";
+import { getUserGitHubToken, getFileSha } from "~/lib/github.server";
 import { Button } from "~/components/ui/Button";
 import { Input } from "~/components/ui/Input";
 import { Avatar } from "~/components/ui/Avatar";
@@ -21,6 +22,15 @@ interface Member {
   avatar_url: string | null;
   email: string;
 }
+
+interface ConnectedRepo {
+  id: string;
+  github_repo: string;
+  display_name: string;
+  status: string;
+}
+
+const REPO_PATTERN = /^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/;
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
@@ -55,10 +65,23 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     };
   });
 
+  const [reposRes, tokenRes] = await Promise.all([
+    supabase
+      .from("workspace_repositories")
+      .select("id, github_repo, display_name, status")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "disconnected"),
+    supabase.from("users").select("github_token_encrypted").eq("id", user.id).single(),
+  ]);
+
   return {
     workspace,
     members: memberList,
+    connectedRepos: (reposRes.data ?? []) as ConnectedRepo[],
     userId: user.id,
+    userRole: role,
+    isEditor: hasMinimumRole(role, "editor"),
+    hasGitHubToken: !!tokenRes.data?.github_token_encrypted,
   };
 }
 
@@ -69,9 +92,75 @@ export async function action({ request, params }: ActionFunctionArgs) {
   const intent = formData.get("intent") as string;
 
   const role = await getUserWorkspaceRole(supabase, workspaceId, user.id);
-  requireRole(role, "owner");
+
+  // Repo actions require editor+, other settings require owner
+  if (intent === "connect-repo" || intent === "disconnect-repo") {
+    requireRole(role, "editor");
+  } else {
+    requireRole(role, "owner");
+  }
 
   switch (intent) {
+    case "connect-repo": {
+      const githubRepo = (formData.get("githubRepo") as string)?.trim();
+      if (!githubRepo || !REPO_PATTERN.test(githubRepo)) {
+        return { ok: false, error: "Invalid format. Use owner/repo (e.g. octocat/hello-world)" };
+      }
+
+      const token = await getUserGitHubToken(supabase, user.id);
+      if (!token) {
+        return {
+          ok: false,
+          error: "No GitHub token found. Please sign out and sign in again with GitHub.",
+        };
+      }
+
+      const sha = await getFileSha(token, githubRepo, "README.md").catch(() => null);
+      if (sha === null) {
+        const canAccess = await getFileSha(token, githubRepo, ".").catch(() => "error");
+        if (canAccess === "error") {
+          return {
+            ok: false,
+            error: "Cannot access this repository. Check the name and your permissions.",
+          };
+        }
+      }
+
+      const displayName = githubRepo.split("/").pop() ?? githubRepo;
+
+      const { error: insertError } = await supabase.from("workspace_repositories").insert({
+        workspace_id: workspaceId,
+        github_repo: githubRepo,
+        display_name: displayName,
+        connected_by: user.id,
+      });
+
+      if (insertError) {
+        if (insertError.code === "23505") {
+          return { ok: false, error: "This repository is already connected." };
+        }
+        return { ok: false, error: "Failed to connect repository." };
+      }
+
+      return { ok: true };
+    }
+
+    case "disconnect-repo": {
+      const repoId = formData.get("repoId") as string;
+
+      const { error: updateError } = await supabase
+        .from("workspace_repositories")
+        .update({ status: "disconnected", updated_at: new Date().toISOString() })
+        .eq("id", repoId)
+        .eq("workspace_id", workspaceId);
+
+      if (updateError) {
+        return { ok: false, error: "Failed to disconnect repository." };
+      }
+
+      return { ok: true };
+    }
+
     case "invite-member": {
       const email = (formData.get("email") as string)?.trim();
       const memberRole = formData.get("role") as string;
@@ -165,7 +254,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function WorkspaceSettings() {
-  const { workspace, members, userId } = useLoaderData<typeof loader>();
+  const { workspace, members, connectedRepos, userId, isEditor, hasGitHubToken } =
+    useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const params = useParams();
@@ -173,6 +263,34 @@ export default function WorkspaceSettings() {
   const [wsName, setWsName] = useState(workspace?.name ?? "");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
+  const [selectedRepo, setSelectedRepo] = useState("");
+  const [githubRepos, setGithubRepos] = useState<{ fullName: string; name: string }[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [reposFetched, setReposFetched] = useState(false);
+
+  function fetchGithubRepos() {
+    if (reposFetched || reposLoading) return;
+    setReposLoading(true);
+    setReposError(null);
+    fetch("/api/github-repos")
+      .then((res) => res.json())
+      .then((data: { repos: { fullName: string; name: string }[]; error?: string }) => {
+        if (data.error === "no_token") {
+          setReposError("No GitHub token. Sign out and sign in with GitHub to connect repos.");
+        } else if (data.error) {
+          setReposError("Failed to load repositories.");
+        } else {
+          setGithubRepos(data.repos);
+        }
+        setReposFetched(true);
+      })
+      .catch(() => {
+        setReposError("Failed to load repositories.");
+        setReposFetched(true);
+      })
+      .finally(() => setReposLoading(false));
+  }
 
   const fetcherData = fetcher.data as
     | { ok?: boolean; error?: string; deleted?: boolean }
@@ -337,6 +455,128 @@ export default function WorkspaceSettings() {
           </Button>
         </form>
       </section>
+
+      {/* Connected Repositories */}
+      {isEditor && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+            Connected Repositories
+          </h2>
+
+          {connectedRepos.length > 0 && (
+            <div className="mb-4 divide-y divide-zinc-200 rounded-lg border border-zinc-200">
+              {connectedRepos.map((repo) => (
+                <div key={repo.id} className="flex items-center gap-3 px-4 py-3">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0 text-zinc-400"
+                  >
+                    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+                    <path d="M9 18c-4.51 2-5-2-7-2" />
+                  </svg>
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate text-sm font-medium text-zinc-900">
+                      {repo.display_name}
+                    </p>
+                    <p className="truncate text-xs text-zinc-500">{repo.github_repo}</p>
+                  </div>
+                  {repo.status === "error" && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      Error
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      fetcher.submit(
+                        { intent: "disconnect-repo", repoId: repo.id },
+                        { method: "post" },
+                      )
+                    }
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {hasGitHubToken ? (
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  GitHub repository
+                </label>
+                <select
+                  value={selectedRepo}
+                  onChange={(e) => setSelectedRepo(e.target.value)}
+                  onFocus={fetchGithubRepos}
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                >
+                  <option value="">
+                    {reposLoading
+                      ? "Loading repositories..."
+                      : reposFetched && githubRepos.length === 0
+                        ? "No repositories found"
+                        : "Select a repository"}
+                  </option>
+                  {githubRepos.map((repo) => (
+                    <option key={repo.fullName} value={repo.fullName}>
+                      {repo.fullName}
+                    </option>
+                  ))}
+                </select>
+                {reposError && <p className="mt-1 text-xs text-red-600">{reposError}</p>}
+              </div>
+              <Button
+                onClick={() => {
+                  if (!selectedRepo) return;
+                  fetcher.submit(
+                    { intent: "connect-repo", githubRepo: selectedRepo },
+                    { method: "post" },
+                  );
+                  setSelectedRepo("");
+                }}
+                disabled={!selectedRepo}
+              >
+                Connect
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-zinc-200 p-4 text-center">
+              <p className="mb-3 text-sm text-zinc-600">
+                Grant GitHub access to browse and connect your repositories.
+              </p>
+              <Button
+                onClick={() => {
+                  void import("~/lib/supabase.client").then(({ getSupabaseClient }) => {
+                    const supabase = getSupabaseClient();
+                    void supabase.auth.signInWithOAuth({
+                      provider: "github",
+                      options: {
+                        redirectTo: `${window.location.origin}/callback?redirect_to=${encodeURIComponent(window.location.pathname)}`,
+                        scopes: "repo",
+                        queryParams: { prompt: "consent" },
+                      },
+                    });
+                  });
+                }}
+              >
+                Connect GitHub
+              </Button>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Danger zone */}
       <section>

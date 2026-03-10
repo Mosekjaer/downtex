@@ -14,6 +14,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.19",
     "@react-router/node": "7.12.0",
     "@react-router/serve": "7.12.0",
     "@supabase/ssr": "^0.9.0",

@@ -24,6 +24,7 @@ import { Footnote } from "./extensions/footnote";
 import { Figure } from "./extensions/figure";
 import { DocumentMention } from "./extensions/document-mention";
 import { SectionReference } from "./extensions/section-reference";
+import { FigureReference } from "./extensions/figure-reference";
 import { FontFamily } from "@tiptap/extension-font-family";
 import { FontSize } from "./extensions/font-size";
 import { LineHeight } from "./extensions/line-height";
@@ -34,15 +35,23 @@ import { TableStyle } from "./extensions/table-style";
 import { TableCellBackground } from "./extensions/table-cell-bg";
 import { ImagePicker } from "~/components/modals/ImagePicker";
 import { FigurePicker } from "~/components/modals/FigurePicker";
+import { FigureReferencePicker } from "~/components/modals/FigureReferencePicker";
 import {
   DocumentMentionPicker,
   type DocumentItem,
 } from "~/components/modals/DocumentMentionPicker";
+import { getSupabaseClient } from "~/lib/supabase.client";
 import { createYjsDoc, initializeFromBase64, exportToBase64 } from "~/lib/yjs";
 
 const lowlight = createLowlight(common);
 
 const ZOOM_STEPS = [50, 75, 100, 125, 150, 200];
+
+export interface ConnectedRepo {
+  id: string;
+  githubRepo: string;
+  displayName: string;
+}
 
 export interface EditorProps {
   documentId: string;
@@ -50,6 +59,7 @@ export interface EditorProps {
   editable: boolean;
   workspaceId: string;
   documents?: DocumentItem[];
+  connectedRepos?: ConnectedRepo[];
 }
 
 export function Editor({
@@ -58,13 +68,17 @@ export function Editor({
   editable,
   workspaceId,
   documents = [],
+  connectedRepos = [],
 }: EditorProps) {
   const fetcher = useFetcher();
+  const figureFetcher = useFetcher();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
   const [zoom, setZoom] = useState(100);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showFigurePicker, setShowFigurePicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [showFigureRefPicker, setShowFigureRefPicker] = useState(false);
 
   // Create and initialize Yjs doc once, stable across re-renders
   const yjsDoc = useMemo(() => {
@@ -88,6 +102,68 @@ export function Editor({
     fetcher.submit(formData, { method: "POST", action: actionUrl });
   }, [editable, fetcher, yjsDoc, actionUrl]);
 
+  // Handle pasted/dropped image files — upload to Supabase and insert as figure
+  const handlePastedFile = useCallback(
+    (file: File) => {
+      const figureId = crypto.randomUUID();
+      const ext = file.type.split("/")[1] || "png";
+      const fileType = ext === "jpeg" ? "jpg" : ext;
+
+      // Insert placeholder figure node immediately
+      const currentEditor = editorRef.current;
+      if (!currentEditor) return;
+
+      currentEditor
+        .chain()
+        .focus()
+        .insertFigure({
+          figureId,
+          githubRepo: "",
+          githubPath: `pasted.${fileType}`,
+          fileType,
+        })
+        .run();
+
+      // Upload via API route
+      const formData = new FormData();
+      formData.set("file", file);
+      formData.set("workspaceId", workspaceId);
+      formData.set("documentId", documentId);
+      formData.set("blockId", figureId);
+
+      fetch("/api/upload-figure", { method: "POST", body: formData })
+        .then((res) => res.json())
+        .then(
+          (data: { ok?: boolean; cachedUrl?: string; cachedFormat?: string; blockId?: string }) => {
+            if (!data.ok || !data.cachedUrl || !data.blockId) return;
+            const ed = editorRef.current;
+            if (!ed) return;
+            const imageAttr = data.cachedFormat === "svg" ? "svgUrl" : "imageUrl";
+            ed.state.doc.descendants((node, pos) => {
+              if (node.type.name === "figure" && node.attrs.figureId === data.blockId) {
+                ed.chain()
+                  .command(({ tr }) => {
+                    tr.setNodeMarkup(pos, undefined, {
+                      ...node.attrs,
+                      [imageAttr]: data.cachedUrl,
+                      figureStatus: "active",
+                    });
+                    return true;
+                  })
+                  .run();
+                return false;
+              }
+              return true;
+            });
+          },
+        )
+        .catch(() => {
+          // Failed upload — figure stays as placeholder
+        });
+    },
+    [workspaceId, documentId],
+  );
+
   const editor = useEditor({
     immediatelyRender: false,
     editable,
@@ -108,6 +184,7 @@ export function Editor({
       MathBlock,
       Footnote,
       Figure,
+      FigureReference,
       DocumentMention,
       SectionReference,
       // Text formatting extensions
@@ -138,6 +215,33 @@ export function Editor({
       attributes: {
         class: "editor-content focus:outline-none min-h-[800px]",
         style: "font-family: Georgia, serif;",
+      },
+      handlePaste(view, event) {
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+        for (const item of items) {
+          if (item.type.startsWith("image/")) {
+            const file = item.getAsFile();
+            if (file) {
+              event.preventDefault();
+              handlePastedFile(file);
+              return true;
+            }
+          }
+        }
+        return false;
+      },
+      handleDrop(view, event) {
+        const files = event.dataTransfer?.files;
+        if (!files?.length) return false;
+        for (const file of files) {
+          if (file.type.startsWith("image/")) {
+            event.preventDefault();
+            handlePastedFile(file);
+            return true;
+          }
+        }
+        return false;
       },
       transformPastedHTML(html) {
         const doc = new DOMParser().parseFromString(html, "text/html");
@@ -170,6 +274,9 @@ export function Editor({
     },
   });
 
+  // Keep editorRef in sync so paste handler can access the editor
+  editorRef.current = editor;
+
   // Save on unmount and clean up
   // Use refs so the cleanup captures the correct values even with [] deps
   const actionUrlRef = useRef(actionUrl);
@@ -197,6 +304,81 @@ export function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Subscribe to figure updates via Supabase Realtime (T018)
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`figures:${documentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "figures",
+          filter: `document_id=eq.${documentId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            block_id: string;
+            cached_image_path: string | null;
+            cached_image_format: string | null;
+            status: string;
+          };
+          if (!editor) return;
+
+          // Find the figure node matching this block_id and update its attributes
+          const { doc } = editor.state;
+          doc.descendants((node, pos) => {
+            if (node.type.name === "figure" && node.attrs.figureId === row.block_id) {
+              const attrs: Record<string, unknown> = {};
+              if (row.status === "error") {
+                attrs.figureStatus = "error";
+              } else if (row.cached_image_path) {
+                const imageAttr = row.cached_image_format === "svg" ? "svgUrl" : "imageUrl";
+                // Create a signed URL since the bucket is private
+                void supabase.storage
+                  .from("figures")
+                  .createSignedUrl(row.cached_image_path, 60 * 60)
+                  .then(({ data: urlData }) => {
+                    if (!urlData?.signedUrl) return;
+                    const finalAttrs = {
+                      ...node.attrs,
+                      [imageAttr]: urlData.signedUrl,
+                      figureStatus: "active",
+                    };
+                    editor
+                      .chain()
+                      .command(({ tr }) => {
+                        tr.setNodeMarkup(pos, undefined, finalAttrs);
+                        return true;
+                      })
+                      .run();
+                  });
+                return false;
+              }
+
+              if (Object.keys(attrs).length > 0) {
+                editor
+                  .chain()
+                  .command(({ tr }) => {
+                    tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...attrs });
+                    return true;
+                  })
+                  .run();
+              }
+              return false;
+            }
+            return true;
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [documentId, editor]);
+
   const zoomIn = useCallback(() => {
     setZoom((z) => {
       const next = ZOOM_STEPS.find((s) => s > z);
@@ -221,9 +403,20 @@ export function Editor({
   );
 
   const handleInsertFigure = useCallback(
-    (repo: string, path: string) => {
+    (repo: string, path: string, fileType: string, workspaceRepositoryId?: string) => {
       const figureId = crypto.randomUUID();
-      editor?.chain().focus().insertFigure({ figureId, githubRepo: repo, githubPath: path }).run();
+
+      // Insert with placeholder — server will download, store, and return a signed URL
+      editor
+        ?.chain()
+        .focus()
+        .insertFigure({
+          figureId,
+          githubRepo: repo,
+          githubPath: path,
+          fileType,
+        })
+        .run();
 
       // Persist figure metadata to DB
       const formData = new FormData();
@@ -231,9 +424,55 @@ export function Editor({
       formData.set("blockId", figureId);
       formData.set("githubRepo", repo);
       formData.set("githubPath", path);
-      fetcher.submit(formData, { method: "POST" });
+      formData.set("fileType", fileType);
+      if (workspaceRepositoryId) {
+        formData.set("workspaceRepositoryId", workspaceRepositoryId);
+      }
+      figureFetcher.submit(formData, { method: "POST" });
     },
-    [editor, fetcher],
+    [editor, figureFetcher],
+  );
+
+  // When a figure render completes, update the editor node with the cached URL
+  useEffect(() => {
+    const data = figureFetcher.data as {
+      ok?: boolean;
+      blockId?: string;
+      cachedUrl?: string;
+      cachedFormat?: string;
+    } | null;
+    if (!data?.ok || !data.blockId || !data.cachedUrl || !editor) return;
+
+    const imageAttr = data.cachedFormat === "svg" ? "svgUrl" : "imageUrl";
+    const { doc } = editor.state;
+    doc.descendants((node, pos) => {
+      if (node.type.name === "figure" && node.attrs.figureId === data.blockId) {
+        editor
+          .chain()
+          .command(({ tr }) => {
+            tr.setNodeMarkup(pos, undefined, {
+              ...node.attrs,
+              [imageAttr]: data.cachedUrl,
+              figureStatus: "active",
+            });
+            return true;
+          })
+          .run();
+        return false;
+      }
+      return true;
+    });
+  }, [figureFetcher.data, editor]);
+
+  const handleInsertFigureRef = useCallback(
+    (figureId: string, caption: string) => {
+      editor
+        ?.chain()
+        .focus()
+        .insertFigureReference({ targetFigureId: figureId, targetCaption: caption })
+        .run();
+    },
+    [editor],
   );
 
   const handleInsertMention = useCallback(
@@ -266,6 +505,7 @@ export function Editor({
           editor={editor}
           onInsertImage={() => setShowImagePicker(true)}
           onInsertFigure={() => setShowFigurePicker(true)}
+          onInsertFigureRef={() => setShowFigureRefPicker(true)}
           onInsertMention={() => setShowMentionPicker(true)}
         />
       )}
@@ -321,6 +561,13 @@ export function Editor({
         isOpen={showFigurePicker}
         onClose={() => setShowFigurePicker(false)}
         onSelect={handleInsertFigure}
+        connectedRepos={connectedRepos}
+      />
+      <FigureReferencePicker
+        isOpen={showFigureRefPicker}
+        onClose={() => setShowFigureRefPicker(false)}
+        onSelect={handleInsertFigureRef}
+        editor={editor}
       />
       <DocumentMentionPicker
         isOpen={showMentionPicker}

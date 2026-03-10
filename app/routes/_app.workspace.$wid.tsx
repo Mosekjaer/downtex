@@ -658,6 +658,34 @@ export default function WorkspaceLayout() {
                 </svg>
                 Settings
               </Link>
+              <button
+                onClick={() => {
+                  void import("~/lib/supabase.client").then(({ getSupabaseClient }) => {
+                    const supabase = getSupabaseClient();
+                    void supabase.auth.signOut().then(() => {
+                      window.location.href = "/login";
+                    });
+                  });
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-200/60 hover:text-zinc-700"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Sign out
+              </button>
             </div>
           </>
         )}
