@@ -72,6 +72,7 @@ export function Editor({
   }, [editable, fetcher, yjsDoc]);
 
   const editor = useEditor({
+    immediatelyRender: false,
     editable,
     extensions: [
       StarterKit.configure({
