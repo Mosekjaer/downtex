@@ -1,8 +1,4 @@
-import {
-  createServerClient,
-  parseCookieHeader,
-  serializeCookieHeader,
-} from "@supabase/ssr";
+import { createServerClient, parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "./env.server";
 
@@ -27,10 +23,7 @@ export function createSupabaseClient(request: Request): {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          headers.append(
-            "Set-Cookie",
-            serializeCookieHeader(name, value, options),
-          );
+          headers.append("Set-Cookie", serializeCookieHeader(name, value, options));
         });
       },
     },
@@ -39,12 +32,15 @@ export function createSupabaseClient(request: Request): {
   return { supabase, headers };
 }
 
+/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/consistent-type-imports */
 export function createServiceRoleClient(): SupabaseClient {
-  const { createClient } = require("@supabase/supabase-js");
+  const { createClient } =
+    require("@supabase/supabase-js") as typeof import("@supabase/supabase-js");
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
+/* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/consistent-type-imports */
 
 export async function requireAuth(request: Request) {
   const { supabase, headers } = createSupabaseClient(request);

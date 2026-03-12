@@ -8,7 +8,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
   }
 
   const { supabase, user } = await requireAuth(request);
-  const documentId = params.docId!;
+  const documentId = params.docId ?? "";
 
   const role = await getUserDocumentRole(supabase, documentId, user.id);
   requireRole(role, "editor");
@@ -21,10 +21,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     .single();
 
   if (docError || !doc) {
-    return Response.json(
-      { ok: false, error: "Document not found" },
-      { status: 404 },
-    );
+    return Response.json({ ok: false, error: "Document not found" }, { status: 404 });
   }
 
   const formData = await request.formData();
@@ -36,13 +33,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const label =
-    (formData.get("label") as string) || `Manual snapshot \u00b7 ${formattedDate}`;
+  const label = (formData.get("label") as string) || `Manual snapshot \u00b7 ${formattedDate}`;
 
   // Store yjs_state as base64 in a JSON field
-  const contentBase64 = doc.yjs_state
-    ? Buffer.from(doc.yjs_state).toString("base64")
-    : null;
+  const contentBase64 = doc.yjs_state ? Buffer.from(doc.yjs_state).toString("base64") : null;
 
   const { data: snapshot, error: insertError } = await supabase
     .from("document_snapshots")
@@ -57,10 +51,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     .single();
 
   if (insertError) {
-    return Response.json(
-      { ok: false, error: insertError.message },
-      { status: 500 },
-    );
+    return Response.json({ ok: false, error: insertError.message }, { status: 500 });
   }
 
   return Response.json({ ok: true, snapshotId: snapshot.id });

@@ -24,7 +24,7 @@ interface Member {
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
-  const workspaceId = params.wid!;
+  const workspaceId = params.wid ?? "";
 
   const role = await getUserWorkspaceRole(supabase, workspaceId, user.id);
   requireRole(role, "owner");
@@ -64,7 +64,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const { supabase, user } = await requireAuth(request);
-  const workspaceId = params.wid!;
+  const workspaceId = params.wid ?? "";
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
 

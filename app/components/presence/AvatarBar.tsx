@@ -43,16 +43,13 @@ export function AvatarBar({ provider, currentUserId }: AvatarBarProps) {
   return (
     <div className="flex items-center gap-1">
       {users.map((user) => (
-        <div
-          key={user.userId}
-          className="group relative"
-        >
+        <div key={user.userId} className="group relative">
           {user.avatarUrl ? (
             <img
               src={user.avatarUrl}
               alt={user.displayName}
-              className="h-6 w-6 rounded-full ring-2"
-              style={{ ringColor: user.cursorColor }}
+              className="h-6 w-6 rounded-full outline outline-2 -outline-offset-1"
+              style={{ outlineColor: user.cursorColor }}
             />
           ) : (
             <div

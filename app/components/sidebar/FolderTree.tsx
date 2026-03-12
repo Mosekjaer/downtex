@@ -52,7 +52,7 @@ function getVisibleFolderIds(folders: Folder[], documents: Document[], query: st
       let current: Folder | undefined = f;
       while (current) {
         visible.add(current.id);
-        current = folders.find((p) => p.id === current!.parent_folder_id);
+        current = folders.find((p) => p.id === current?.parent_folder_id);
       }
     }
   }
@@ -62,7 +62,7 @@ function getVisibleFolderIds(folders: Folder[], documents: Document[], query: st
       let current: Folder | undefined = folders.find((f) => f.id === d.folder_id);
       while (current) {
         visible.add(current.id);
-        current = folders.find((p) => p.id === current!.parent_folder_id);
+        current = folders.find((p) => p.id === current?.parent_folder_id);
       }
     }
   }
@@ -223,6 +223,7 @@ export function FolderTree({
   useEffect(() => {
     if (searchQuery) {
       const vis = getVisibleFolderIds(folders, documents, searchQuery);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setExpandedIds(vis);
     }
   }, [searchQuery, folders, documents]);

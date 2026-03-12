@@ -18,6 +18,7 @@ export type VersionHistoryProps = {
   snapshots: Snapshot[];
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function VersionHistory({ isOpen, onClose, documentId, snapshots }: VersionHistoryProps) {
   const fetcher = useFetcher();
   const [previewSnapshot, setPreviewSnapshot] = useState<Snapshot | null>(null);
@@ -28,10 +29,7 @@ function VersionHistory({ isOpen, onClose, documentId, snapshots }: VersionHisto
   );
 
   function handleRestore(snapshotId: string) {
-    fetcher.submit(
-      { intent: "restore-snapshot", snapshotId },
-      { method: "post" },
-    );
+    fetcher.submit({ intent: "restore-snapshot", snapshotId }, { method: "post" });
     setConfirmRestoreId(null);
     onClose();
   }
@@ -68,9 +66,7 @@ function VersionHistory({ isOpen, onClose, documentId, snapshots }: VersionHisto
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-zinc-900">
-                        {snap.label}
-                      </p>
+                      <p className="truncate text-sm font-medium text-zinc-900">{snap.label}</p>
                       <div className="mt-1 flex items-center gap-2">
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -81,22 +77,16 @@ function VersionHistory({ isOpen, onClose, documentId, snapshots }: VersionHisto
                         >
                           {snap.type === "manual" ? "Manual" : "Auto"}
                         </span>
-                        <span className="text-xs text-zinc-500">
-                          {formatDate(snap.created_at)}
-                        </span>
+                        <span className="text-xs text-zinc-500">{formatDate(snap.created_at)}</span>
                       </div>
-                      <p className="mt-0.5 text-xs text-zinc-400">
-                        by {snap.created_by_name}
-                      </p>
+                      <p className="mt-0.5 text-xs text-zinc-400">by {snap.created_by_name}</p>
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() =>
-                          setPreviewSnapshot(
-                            previewSnapshot?.id === snap.id ? null : snap,
-                          )
+                          setPreviewSnapshot(previewSnapshot?.id === snap.id ? null : snap)
                         }
                       >
                         Preview
@@ -140,9 +130,7 @@ function VersionHistory({ isOpen, onClose, documentId, snapshots }: VersionHisto
         {previewSnapshot && (
           <div className="w-1/2 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-zinc-900">
-                Snapshot Preview
-              </h3>
+              <h3 className="text-sm font-semibold text-zinc-900">Snapshot Preview</h3>
               <button
                 onClick={() => setPreviewSnapshot(null)}
                 className="text-xs text-zinc-400 hover:text-zinc-600"
@@ -157,27 +145,20 @@ function VersionHistory({ isOpen, onClose, documentId, snapshots }: VersionHisto
               </div>
               <div>
                 <dt className="font-medium text-zinc-600">Type</dt>
-                <dd className="capitalize text-zinc-900">
-                  {previewSnapshot.type}
-                </dd>
+                <dd className="capitalize text-zinc-900">{previewSnapshot.type}</dd>
               </div>
               <div>
                 <dt className="font-medium text-zinc-600">Created at</dt>
-                <dd className="text-zinc-900">
-                  {formatDate(previewSnapshot.created_at)}
-                </dd>
+                <dd className="text-zinc-900">{formatDate(previewSnapshot.created_at)}</dd>
               </div>
               <div>
                 <dt className="font-medium text-zinc-600">Created by</dt>
-                <dd className="text-zinc-900">
-                  {previewSnapshot.created_by_name}
-                </dd>
+                <dd className="text-zinc-900">{previewSnapshot.created_by_name}</dd>
               </div>
             </dl>
             <p className="mt-4 rounded border border-zinc-200 bg-white p-3 text-xs text-zinc-500">
-              Full document preview is not yet available. Restoring this
-              snapshot will replace the current document content with the saved
-              Yjs state from this point in time.
+              Full document preview is not yet available. Restoring this snapshot will replace the
+              current document content with the saved Yjs state from this point in time.
             </p>
           </div>
         )}

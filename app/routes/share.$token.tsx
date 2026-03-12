@@ -282,8 +282,7 @@ function renderCellContent(cell: PMNode): string {
 
 function yjsStateToHtml(yjsState: Buffer | Uint8Array): string {
   const ydoc = new Y.Doc();
-  const binary =
-    yjsState instanceof Uint8Array ? yjsState : new Uint8Array(Buffer.from(yjsState));
+  const binary = yjsState instanceof Uint8Array ? yjsState : new Uint8Array(Buffer.from(yjsState));
   Y.applyUpdate(ydoc, binary);
   const fragment = ydoc.getXmlFragment("default");
   const json = xmlFragmentToJson(fragment);
@@ -293,7 +292,7 @@ function yjsStateToHtml(yjsState: Buffer | Uint8Array): string {
 // ---- Route ----
 
 export async function loader({ params }: LoaderFunctionArgs) {
-  const token = params.token!;
+  const token = params.token ?? "";
   const supabase = createServiceRoleClient();
 
   const { data: link } = await supabase
@@ -330,10 +329,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
   const title = data?.title ?? "Shared Document";
-  return [
-    { title: `${title} — Downtex` },
-    { name: "robots", content: "noindex" },
-  ];
+  return [{ title: `${title} — Downtex` }, { name: "robots", content: "noindex" }];
 };
 
 export default function SharedDocumentPage() {
@@ -344,9 +340,7 @@ export default function SharedDocumentPage() {
       <header className="border-b border-zinc-200 px-6 py-4">
         <div className="mx-auto" style={{ maxWidth: 680 }}>
           <h1 className="text-lg font-semibold text-zinc-900">{title}</h1>
-          <p className="mt-0.5 text-xs text-zinc-400">
-            Shared document &mdash; read only
-          </p>
+          <p className="mt-0.5 text-xs text-zinc-400">Shared document &mdash; read only</p>
         </div>
       </header>
       <main
@@ -354,9 +348,7 @@ export default function SharedDocumentPage() {
         style={{ maxWidth: 680, fontFamily: "Georgia, serif" }}
       >
         {isEmpty ? (
-          <p className="py-20 text-center text-sm text-zinc-400">
-            This document is empty.
-          </p>
+          <p className="py-20 text-center text-sm text-zinc-400">This document is empty.</p>
         ) : (
           <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
         )}
