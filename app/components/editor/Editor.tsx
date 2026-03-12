@@ -62,14 +62,17 @@ export function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
 
+  // Stable action URL for this document — used by both debounced save and unmount save
+  const actionUrl = `/workspace/${workspaceId}/${documentId}`;
+
   const saveState = useCallback(() => {
     if (!editable) return;
     const base64 = exportToBase64(yjsDoc);
     const formData = new FormData();
     formData.set("intent", "save-yjs-state");
     formData.set("state", base64);
-    fetcher.submit(formData, { method: "POST" });
-  }, [editable, fetcher, yjsDoc]);
+    fetcher.submit(formData, { method: "POST", action: actionUrl });
+  }, [editable, fetcher, yjsDoc, actionUrl]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -117,20 +120,28 @@ export function Editor({
   });
 
   // Save on unmount and clean up
+  // Use refs so the cleanup captures the correct values even with [] deps
+  const actionUrlRef = useRef(actionUrl);
+  actionUrlRef.current = actionUrl;
+  const yjsDocRef = useRef(yjsDoc);
+  yjsDocRef.current = yjsDoc;
+
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      // Save before leaving
+      // Save before leaving — target the explicit action URL for this document
+      // so the state goes to the correct document even if the route has changed
       if (editable) {
-        const base64 = exportToBase64(yjsDoc);
+        const base64 = exportToBase64(yjsDocRef.current);
         const formData = new FormData();
         formData.set("intent", "save-yjs-state");
         formData.set("state", base64);
-        fetcher.submit(formData, { method: "POST" });
+        // Use fetch directly since the component's fetcher may not be reliable during unmount
+        fetch(actionUrlRef.current, { method: "POST", body: formData, keepalive: true });
       }
-      yjsDoc.destroy();
+      yjsDocRef.current.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
