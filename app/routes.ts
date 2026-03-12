@@ -15,6 +15,7 @@ export default [
     // Workspace layout with nested children
     route("workspace/:wid", "routes/_app.workspace.$wid.tsx", [
       route("settings", "routes/_app.workspace.$wid.settings.tsx"),
+      route("folder/:folderId", "routes/_app.workspace.$wid.folder.$folderId.tsx"),
       route(":docId", "routes/_app.workspace.$wid.$docId.tsx"),
     ]),
   ]),
