@@ -13,7 +13,6 @@ import { getUserWorkspaceRole, requireRole } from "~/lib/permissions.server";
 import { FolderTree } from "~/components/sidebar/FolderTree";
 import { SearchBar } from "~/components/sidebar/SearchBar";
 import { WorkspaceSwitcher } from "~/components/sidebar/WorkspaceSwitcher";
-import { EditorSkeleton } from "~/components/editor/EditorSkeleton";
 
 interface Folder {
   id: string;
@@ -678,12 +677,16 @@ export default function WorkspaceLayout() {
 
       {/* Main content */}
       <main className="relative flex-1 overflow-hidden">
-        <Outlet />
         {navigation.state === "loading" && (
-          <div className="absolute inset-0 z-10">
-            <EditorSkeleton />
+          <div className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden bg-accent-100">
+            <div className="h-full w-1/3 animate-[shimmer_1s_ease-in-out_infinite] bg-accent-500" />
           </div>
         )}
+        <div
+          className={`h-full transition-opacity duration-150 ${navigation.state === "loading" ? "pointer-events-none opacity-60" : ""}`}
+        >
+          <Outlet />
+        </div>
       </main>
     </div>
   );
