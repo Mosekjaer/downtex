@@ -17,8 +17,7 @@ Generate a clear, concise commit message for the currently staged changes and co
 2. Run `git diff --cached` to analyze the staged changes.
 3. Run `git log --oneline -5` to understand recent commit style and context.
 4. Generate a commit message following the format below.
-5. Show the proposed message to the user and ask for confirmation.
-6. If confirmed, run `git commit -m "<message>"`.
+5. Run `git commit -m "<message>"` immediately (do NOT ask for confirmation).
 
 ## Commit Message Format
 
