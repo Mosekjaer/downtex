@@ -355,7 +355,7 @@ export default function DocumentEditorPage() {
           )}
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         <Editor
           documentId={document.id}
           initialStateBase64={yjsStateBase64}
