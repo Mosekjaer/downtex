@@ -75,7 +75,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }
   }
 
-  const yjsStateBase64 = doc.yjs_state ? Buffer.from(doc.yjs_state).toString("base64") : null;
+  // Supabase returns bytea as \x-prefixed hex string
+  let yjsStateBase64: string | null = null;
+  if (doc.yjs_state) {
+    const hex =
+      typeof doc.yjs_state === "string" && doc.yjs_state.startsWith("\\x")
+        ? doc.yjs_state.slice(2)
+        : Buffer.from(doc.yjs_state).toString("hex");
+    yjsStateBase64 = Buffer.from(hex, "hex").toString("base64");
+  }
 
   return {
     document: {
@@ -111,10 +119,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
     case "save-yjs-state": {
       requireRole(role, "editor");
       const stateBase64 = formData.get("state") as string;
-      const stateBuffer = Buffer.from(stateBase64, "base64");
+      // Supabase expects bytea as \x-prefixed hex string, not a Buffer object
+      const stateHex = "\\x" + Buffer.from(stateBase64, "base64").toString("hex");
       await supabase
         .from("documents")
-        .update({ yjs_state: stateBuffer, updated_at: new Date().toISOString() })
+        .update({ yjs_state: stateHex, updated_at: new Date().toISOString() })
         .eq("id", documentId);
       return { ok: true };
     }
