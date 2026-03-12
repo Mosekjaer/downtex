@@ -1,0 +1,132 @@
+# API Routes Contract: Downtex
+
+**Branch**: `001-collab-academic-editor`
+**Date**: 2026-03-12
+
+All routes are Remix file-based routes. Server-side logic lives in `loader` (GET) and `action` (POST/PUT/DELETE) functions. No standalone API server — Remix handles everything.
+
+## Authentication Routes
+
+### `_auth.login` — GET
+Renders the sign-in page with GitHub and Google OAuth buttons.
+
+### `_auth.callback` — GET
+Handles OAuth callback from Supabase Auth. Exchanges code for session, creates/links user profile, redirects to `_app._index`.
+
+**Query params**: `code` (from OAuth provider)
+**Side effects**: Creates `users` row on first sign-in, creates personal workspace, stores encrypted GitHub token if GitHub OAuth.
+
+## Application Routes (authenticated)
+
+### `_app._index` — GET (loader)
+Redirects to the user's personal workspace: `/workspace/{personalWorkspaceId}`.
+
+### `_app.workspace.$wid` — GET (loader) / POST (action)
+**Loader**: Returns workspace details, folder tree, and documents for workspace `$wid`. User must be a member.
+**Action** (POST):
+- `intent: "create-folder"` → Creates a folder. Body: `{ name, parentFolderId? }`
+- `intent: "rename-folder"` → Body: `{ folderId, name }`
+- `intent: "delete-folder"` → Body: `{ folderId }`. Cascades to subfolders and documents.
+- `intent: "create-document"` → Body: `{ folderId, title? }`. Returns new document ID.
+- `intent: "rename-document"` → Body: `{ documentId, title }`
+- `intent: "move-document"` → Body: `{ documentId, targetFolderId }`
+- `intent: "delete-document"` → Body: `{ documentId }`
+- `intent: "reorder"` → Body: `{ items: [{ id, sortOrder }] }`
+
+**Authorization**: Loader requires viewer+. Actions require editor+ (except delete workspace = owner).
+
+### `_app.workspace.$wid.$docId` — GET (loader)
+**Loader**: Returns document metadata (title, collaborators, presence channel name), user's effective role, and initial Yjs binary state for hydration. Does NOT return full document content as JSON — the Yjs state is loaded client-side.
+
+**Authorization**: Viewer+ or valid public link token.
+
+### `_app.workspace.$wid.settings` — GET (loader) / POST (action)
+**Loader**: Returns workspace settings (name, avatar, member list with roles). Owner only.
+**Action**:
+- `intent: "update-workspace"` → Body: `{ name?, avatarUrl? }`
+- `intent: "invite-member"` → Body: `{ email, role }`
+- `intent: "update-member-role"` → Body: `{ userId, role }`
+- `intent: "remove-member"` → Body: `{ userId }`. Cannot remove self if owner.
+- `intent: "delete-workspace"` → No body. Owner only. Cascades everything.
+
+### `_app.settings` — GET (loader) / POST (action)
+**Loader**: Returns user profile (display name, avatar, linked providers, notification prefs).
+**Action**:
+- `intent: "update-profile"` → Body: `{ displayName?, avatarUrl? }`
+- `intent: "update-notifications"` → Body: `{ emailComments: boolean }`
+- `intent: "link-provider"` → Initiates OAuth flow for linking additional provider.
+
+## API Routes
+
+### `api.export.$docId` — POST (action)
+Generates a PDF for document `$docId`.
+
+**Authorization**: Editor+ role required. No anonymous/public export.
+**Flow**:
+1. Fetch Yjs state from database, decode to document JSON
+2. Resolve all cross-references (section numbers, document titles)
+3. Fetch all figure SVGs from `figures` table
+4. Render HTML via internal route `/render/$docId?token={oneTimeToken}`
+5. Puppeteer prints to PDF (A4, with headers/footers)
+6. Return PDF as `Content-Type: application/pdf` with `Content-Disposition: attachment`
+
+**Response**: PDF binary stream.
+**Error**: 403 if insufficient role, 404 if document not found, 500 if rendering fails.
+
+### `api.snapshot.$docId` — POST (action)
+Creates a manual snapshot for document `$docId`.
+
+**Authorization**: Editor+ role required.
+**Body**: `{ label: string }`
+**Flow**:
+1. Fetch current Yjs state, decode to JSON
+2. Insert into `document_snapshots` with `type = 'manual'`
+**Response**: `{ id, label, createdAt }`
+
+### `api.figures.poll` — POST (action)
+Internal webhook called by the Supabase Edge Function after polling GitHub.
+
+**Authorization**: Requires service-role secret in `Authorization` header. Not accessible to clients.
+**Body**: `{ figureId, lastSha, svgContent?, error? }`
+**Flow**: Updates the `figures` row. Supabase Realtime broadcasts the change to connected clients.
+
+## Public Routes (no auth required)
+
+### `share.$token` — GET (loader)
+Renders a document in read-only mode for anyone with a valid public link token.
+
+**Loader**: Validates token against `document_public_links`. If valid, fetches document content (decoded from Yjs to HTML). If invalid, returns 404.
+**Features**: No editing, no comments, no export. Progressive enhancement: works without JavaScript (server-rendered HTML).
+
+### `render.$docId` — GET (loader)
+Internal route for PDF rendering. Not linked in the UI.
+
+**Authorization**: Requires a one-time token query parameter generated by the export action. Token is valid for 60 seconds.
+**Response**: Full HTML page with academic PDF styles, ready for Puppeteer to print.
+
+## Document-Level Actions (via `_app.workspace.$wid.$docId` action)
+
+These are POST actions on the document editor route:
+
+- `intent: "update-title"` → Body: `{ title }`
+- `intent: "share-user"` → Body: `{ email, role }`
+- `intent: "remove-share"` → Body: `{ userId }`
+- `intent: "enable-public-link"` → No body. Creates `document_public_links` row.
+- `intent: "disable-public-link"` → No body. Deletes `document_public_links` row.
+- `intent: "create-comment"` → Body: `{ anchorStart, anchorEnd, body }`
+- `intent: "reply-comment"` → Body: `{ commentId, body }`
+- `intent: "resolve-comment"` → Body: `{ commentId }`
+- `intent: "restore-snapshot"` → Body: `{ snapshotId }`
+- `intent: "insert-figure"` → Body: `{ blockId, githubRepo, githubPath }`
+- `intent: "remove-figure"` → Body: `{ figureId }`
+
+## Error Response Format
+
+All actions return standard Remix responses. Errors use:
+```json
+{
+  "error": "Human-readable error message",
+  "code": "PERMISSION_DENIED" | "NOT_FOUND" | "VALIDATION_ERROR" | "INTERNAL_ERROR"
+}
+```
+HTTP status codes: 400 (validation), 403 (permission), 404 (not found), 500 (internal).
