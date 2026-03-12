@@ -6,19 +6,25 @@ services:
     env_file:
       - .env
     depends_on:
-      - supabase
+      postgres:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
 
-  supabase:
-    image: supabase/postgres:15.8.1.145
+  postgres:
+    image: postgres:16-alpine
     ports:
       - "54322:5432"
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     volumes:
-      - supabase-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  supabase-data:
+  postgres-data:
