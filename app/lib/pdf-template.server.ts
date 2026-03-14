@@ -60,7 +60,25 @@ export interface DocumentData {
   content: ProseMirrorNode;
 }
 
+// ---- Figure numbering state ----
+
+let figureCounter = 0;
+const figureNumberMap = new Map<string, number>();
+
 export function renderDocumentToHtml(doc: DocumentData): string {
+  // Reset figure counter for this document
+  figureCounter = 0;
+  figureNumberMap.clear();
+  // Pre-scan to build figure number map
+  walkNodes(doc.content, (n) => {
+    if (n.type === "figure") {
+      figureCounter++;
+      const id = n.attrs?.figureId as string;
+      if (id) figureNumberMap.set(id, figureCounter);
+    }
+  });
+  figureCounter = 0; // Reset for rendering pass
+
   const bodyHtml = renderContent(doc.content);
   const headings = collectHeadings(doc.content);
   const tocHtml = renderToc(headings);
@@ -208,12 +226,26 @@ function renderNode(node: ProseMirrorNode): string {
       return `<div class="katex-display">${renderKatex(latex, true)}</div>`;
     }
 
-    case "image":
-    case "figure": {
+    case "image": {
       const src = (node.attrs?.src as string) ?? "";
       const alt = (node.attrs?.alt as string) ?? "";
-      const caption = (node.attrs?.caption as string) ?? alt;
-      return `<figure><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" />${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ""}</figure>`;
+      return `<figure><img src="${escapeAttr(src)}" alt="${escapeAttr(alt)}" />${alt ? `<figcaption>${escapeHtml(alt)}</figcaption>` : ""}</figure>`;
+    }
+
+    case "figure": {
+      figureCounter++;
+      const figSrc =
+        (node.attrs?.svgUrl as string) ||
+        (node.attrs?.imageUrl as string) ||
+        (node.attrs?.src as string) ||
+        "";
+      const figAlt = (node.attrs?.caption as string) || "Figure";
+      const figCaption = node.content
+        ? node.content.map(getPlainText).join("")
+        : ((node.attrs?.caption as string) ?? "");
+      const figPrefix = `Figur ${figureCounter}`;
+      const captionText = figCaption ? `${figPrefix}: ${escapeHtml(figCaption)}` : figPrefix;
+      return `<figure class="drawio-figure">${figSrc ? `<img src="${escapeAttr(figSrc)}" alt="${escapeAttr(figAlt)}" style="max-width:100%;height:auto;" />` : ""}<figcaption>${captionText}</figcaption></figure>`;
     }
 
     case "footnote": {
@@ -244,6 +276,12 @@ function renderInline(node: ProseMirrorNode): string {
 
 function renderText(node: ProseMirrorNode): string {
   if (node.type === "hardBreak") return "<br />";
+
+  if (node.type === "figureReference") {
+    const targetId = (node.attrs?.targetFigureId as string) ?? "";
+    const num = figureNumberMap.get(targetId);
+    return `<span class="figure-ref">${num ? `Figur ${num}` : "Figur ?"}</span>`;
+  }
 
   if (node.type === "math_inline" || node.type === "mathInline") {
     const latex = node.text || (node.attrs?.latex as string) || "";

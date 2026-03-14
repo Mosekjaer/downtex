@@ -14,6 +14,7 @@ interface ToolbarProps {
   editor: Editor;
   onInsertImage?: () => void;
   onInsertFigure?: () => void;
+  onInsertFigureRef?: () => void;
   onInsertMention?: () => void;
 }
 
@@ -27,7 +28,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "table", label: "Table" },
 ];
 
-export function Toolbar({ editor, onInsertImage, onInsertFigure, onInsertMention }: ToolbarProps) {
+export function Toolbar({
+  editor,
+  onInsertImage,
+  onInsertFigure,
+  onInsertFigureRef,
+  onInsertMention,
+}: ToolbarProps) {
   const [activeTab, setActiveTab] = useState<Tab>("text");
   const rafRef = useRef(0);
   const [, setTick] = useState(0);
@@ -98,6 +105,7 @@ export function Toolbar({ editor, onInsertImage, onInsertFigure, onInsertMention
             editor={editor}
             onInsertImage={onInsertImage}
             onInsertFigure={onInsertFigure}
+            onInsertFigureRef={onInsertFigureRef}
             onInsertMention={onInsertMention}
           />
         )}
@@ -282,11 +290,13 @@ function InsertTab({
   editor,
   onInsertImage,
   onInsertFigure,
+  onInsertFigureRef,
   onInsertMention,
 }: {
   editor: Editor;
   onInsertImage?: () => void;
   onInsertFigure?: () => void;
+  onInsertFigureRef?: () => void;
   onInsertMention?: () => void;
 }) {
   return (
@@ -315,6 +325,11 @@ function InsertTab({
       {onInsertFigure && (
         <ToolbarButton active={false} onClick={onInsertFigure} title="Insert Draw.io figure">
           Fig
+        </ToolbarButton>
+      )}
+      {onInsertFigureRef && (
+        <ToolbarButton active={false} onClick={onInsertFigureRef} title="Reference a figure">
+          Fig Ref
         </ToolbarButton>
       )}
       {onInsertMention && (

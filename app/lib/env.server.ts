@@ -8,9 +8,13 @@ const envSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
-  ENCRYPTION_KEY: z.string().length(64).regex(/^[0-9a-f]+$/i),
+  ENCRYPTION_KEY: z
+    .string()
+    .length(64)
+    .regex(/^[0-9a-f]+$/i),
   SESSION_SECRET: z.string().min(1),
   APP_URL: z.url(),
+  GITHUB_SERVICE_TOKEN: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

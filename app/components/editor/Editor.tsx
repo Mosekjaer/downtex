@@ -24,6 +24,7 @@ import { Footnote } from "./extensions/footnote";
 import { Figure } from "./extensions/figure";
 import { DocumentMention } from "./extensions/document-mention";
 import { SectionReference } from "./extensions/section-reference";
+import { FigureReference } from "./extensions/figure-reference";
 import { FontFamily } from "@tiptap/extension-font-family";
 import { FontSize } from "./extensions/font-size";
 import { LineHeight } from "./extensions/line-height";
@@ -34,15 +35,23 @@ import { TableStyle } from "./extensions/table-style";
 import { TableCellBackground } from "./extensions/table-cell-bg";
 import { ImagePicker } from "~/components/modals/ImagePicker";
 import { FigurePicker } from "~/components/modals/FigurePicker";
+import { FigureReferencePicker } from "~/components/modals/FigureReferencePicker";
 import {
   DocumentMentionPicker,
   type DocumentItem,
 } from "~/components/modals/DocumentMentionPicker";
+import { getSupabaseClient } from "~/lib/supabase.client";
 import { createYjsDoc, initializeFromBase64, exportToBase64 } from "~/lib/yjs";
 
 const lowlight = createLowlight(common);
 
 const ZOOM_STEPS = [50, 75, 100, 125, 150, 200];
+
+export interface ConnectedRepo {
+  id: string;
+  githubRepo: string;
+  displayName: string;
+}
 
 export interface EditorProps {
   documentId: string;
@@ -50,6 +59,7 @@ export interface EditorProps {
   editable: boolean;
   workspaceId: string;
   documents?: DocumentItem[];
+  connectedRepos?: ConnectedRepo[];
 }
 
 export function Editor({
@@ -58,6 +68,7 @@ export function Editor({
   editable,
   workspaceId,
   documents = [],
+  connectedRepos = [],
 }: EditorProps) {
   const fetcher = useFetcher();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,6 +76,7 @@ export function Editor({
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [showFigurePicker, setShowFigurePicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [showFigureRefPicker, setShowFigureRefPicker] = useState(false);
 
   // Create and initialize Yjs doc once, stable across re-renders
   const yjsDoc = useMemo(() => {
@@ -108,6 +120,7 @@ export function Editor({
       MathBlock,
       Footnote,
       Figure,
+      FigureReference,
       DocumentMention,
       SectionReference,
       // Text formatting extensions
@@ -197,6 +210,69 @@ export function Editor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Subscribe to figure updates via Supabase Realtime (T018)
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`figures:${documentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "figures",
+          filter: `document_id=eq.${documentId}`,
+        },
+        (payload) => {
+          const row = payload.new as {
+            block_id: string;
+            cached_image_path: string | null;
+            cached_image_format: string | null;
+            status: string;
+          };
+          if (!editor) return;
+
+          // Find the figure node matching this block_id and update its attributes
+          const { doc } = editor.state;
+          doc.descendants((node, pos) => {
+            if (node.type.name === "figure" && node.attrs.figureId === row.block_id) {
+              const attrs: Record<string, unknown> = {};
+              if (row.status === "error") {
+                attrs.figureStatus = "error";
+              } else if (row.cached_image_path) {
+                // Build a signed URL by fetching it — for now use the storage path directly
+                // The render route already stored a signed URL; we re-derive from storage
+                const imageAttr = row.cached_image_format === "svg" ? "svgUrl" : "imageUrl";
+                // Construct the Supabase storage URL
+                const { data } = supabase.storage
+                  .from("figures")
+                  .getPublicUrl(row.cached_image_path);
+                attrs[imageAttr] = data.publicUrl;
+                attrs.figureStatus = "active";
+              }
+
+              if (Object.keys(attrs).length > 0) {
+                editor
+                  .chain()
+                  .command(({ tr }) => {
+                    tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...attrs });
+                    return true;
+                  })
+                  .run();
+              }
+              return false; // stop traversal for this branch
+            }
+            return true;
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [documentId, editor]);
+
   const zoomIn = useCallback(() => {
     setZoom((z) => {
       const next = ZOOM_STEPS.find((s) => s > z);
@@ -221,9 +297,13 @@ export function Editor({
   );
 
   const handleInsertFigure = useCallback(
-    (repo: string, path: string) => {
+    (repo: string, path: string, fileType: string, workspaceRepositoryId?: string) => {
       const figureId = crypto.randomUUID();
-      editor?.chain().focus().insertFigure({ figureId, githubRepo: repo, githubPath: path }).run();
+      editor
+        ?.chain()
+        .focus()
+        .insertFigure({ figureId, githubRepo: repo, githubPath: path, fileType })
+        .run();
 
       // Persist figure metadata to DB
       const formData = new FormData();
@@ -231,9 +311,24 @@ export function Editor({
       formData.set("blockId", figureId);
       formData.set("githubRepo", repo);
       formData.set("githubPath", path);
+      formData.set("fileType", fileType);
+      if (workspaceRepositoryId) {
+        formData.set("workspaceRepositoryId", workspaceRepositoryId);
+      }
       fetcher.submit(formData, { method: "POST" });
     },
     [editor, fetcher],
+  );
+
+  const handleInsertFigureRef = useCallback(
+    (figureId: string, caption: string) => {
+      editor
+        ?.chain()
+        .focus()
+        .insertFigureReference({ targetFigureId: figureId, targetCaption: caption })
+        .run();
+    },
+    [editor],
   );
 
   const handleInsertMention = useCallback(
@@ -266,6 +361,7 @@ export function Editor({
           editor={editor}
           onInsertImage={() => setShowImagePicker(true)}
           onInsertFigure={() => setShowFigurePicker(true)}
+          onInsertFigureRef={() => setShowFigureRefPicker(true)}
           onInsertMention={() => setShowMentionPicker(true)}
         />
       )}
@@ -321,6 +417,13 @@ export function Editor({
         isOpen={showFigurePicker}
         onClose={() => setShowFigurePicker(false)}
         onSelect={handleInsertFigure}
+        connectedRepos={connectedRepos}
+      />
+      <FigureReferencePicker
+        isOpen={showFigureRefPicker}
+        onClose={() => setShowFigureRefPicker(false)}
+        onSelect={handleInsertFigureRef}
+        editor={editor}
       />
       <DocumentMentionPicker
         isOpen={showMentionPicker}
