@@ -65,19 +65,23 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     };
   });
 
-  const { data: repos } = await supabase
-    .from("workspace_repositories")
-    .select("id, github_repo, display_name, status")
-    .eq("workspace_id", workspaceId)
-    .neq("status", "disconnected");
+  const [reposRes, tokenRes] = await Promise.all([
+    supabase
+      .from("workspace_repositories")
+      .select("id, github_repo, display_name, status")
+      .eq("workspace_id", workspaceId)
+      .neq("status", "disconnected"),
+    supabase.from("users").select("github_token_encrypted").eq("id", user.id).single(),
+  ]);
 
   return {
     workspace,
     members: memberList,
-    connectedRepos: (repos ?? []) as ConnectedRepo[],
+    connectedRepos: (reposRes.data ?? []) as ConnectedRepo[],
     userId: user.id,
     userRole: role,
     isEditor: hasMinimumRole(role, "editor"),
+    hasGitHubToken: !!tokenRes.data?.github_token_encrypted,
   };
 }
 
@@ -250,7 +254,8 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function WorkspaceSettings() {
-  const { workspace, members, connectedRepos, userId, isEditor } = useLoaderData<typeof loader>();
+  const { workspace, members, connectedRepos, userId, isEditor, hasGitHubToken } =
+    useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const params = useParams();
@@ -505,46 +510,71 @@ export default function WorkspaceSettings() {
             </div>
           )}
 
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <label className="mb-1 block text-sm font-medium text-zinc-700">
-                GitHub repository
-              </label>
-              <select
-                value={selectedRepo}
-                onChange={(e) => setSelectedRepo(e.target.value)}
-                onFocus={fetchGithubRepos}
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
-              >
-                <option value="">
-                  {reposLoading
-                    ? "Loading repositories..."
-                    : reposFetched && githubRepos.length === 0
-                      ? "No repositories found"
-                      : "Select a repository"}
-                </option>
-                {githubRepos.map((repo) => (
-                  <option key={repo.fullName} value={repo.fullName}>
-                    {repo.fullName}
+          {hasGitHubToken ? (
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="mb-1 block text-sm font-medium text-zinc-700">
+                  GitHub repository
+                </label>
+                <select
+                  value={selectedRepo}
+                  onChange={(e) => setSelectedRepo(e.target.value)}
+                  onFocus={fetchGithubRepos}
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                >
+                  <option value="">
+                    {reposLoading
+                      ? "Loading repositories..."
+                      : reposFetched && githubRepos.length === 0
+                        ? "No repositories found"
+                        : "Select a repository"}
                   </option>
-                ))}
-              </select>
-              {reposError && <p className="mt-1 text-xs text-red-600">{reposError}</p>}
+                  {githubRepos.map((repo) => (
+                    <option key={repo.fullName} value={repo.fullName}>
+                      {repo.fullName}
+                    </option>
+                  ))}
+                </select>
+                {reposError && <p className="mt-1 text-xs text-red-600">{reposError}</p>}
+              </div>
+              <Button
+                onClick={() => {
+                  if (!selectedRepo) return;
+                  fetcher.submit(
+                    { intent: "connect-repo", githubRepo: selectedRepo },
+                    { method: "post" },
+                  );
+                  setSelectedRepo("");
+                }}
+                disabled={!selectedRepo}
+              >
+                Connect
+              </Button>
             </div>
-            <Button
-              onClick={() => {
-                if (!selectedRepo) return;
-                fetcher.submit(
-                  { intent: "connect-repo", githubRepo: selectedRepo },
-                  { method: "post" },
-                );
-                setSelectedRepo("");
-              }}
-              disabled={!selectedRepo}
-            >
-              Connect
-            </Button>
-          </div>
+          ) : (
+            <div className="rounded-lg border border-zinc-200 p-4 text-center">
+              <p className="mb-3 text-sm text-zinc-600">
+                Grant GitHub access to browse and connect your repositories.
+              </p>
+              <Button
+                onClick={() => {
+                  void import("~/lib/supabase.client").then(({ getSupabaseClient }) => {
+                    const supabase = getSupabaseClient();
+                    void supabase.auth.signInWithOAuth({
+                      provider: "github",
+                      options: {
+                        redirectTo: `${window.location.origin}/callback?redirect_to=${encodeURIComponent(window.location.pathname)}`,
+                        scopes: "repo",
+                        queryParams: { prompt: "consent" },
+                      },
+                    });
+                  });
+                }}
+              >
+                Connect GitHub
+              </Button>
+            </div>
+          )}
         </section>
       )}
 
