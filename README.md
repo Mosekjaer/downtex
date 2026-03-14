@@ -30,6 +30,16 @@ make supabase-start
 
 # Run the dev server
 make dev
+
+# Run quality checks
+make check            # typecheck + lint
+make test             # unit tests (Vitest)
+make test-e2e         # E2E tests (Playwright)
+
+# Database management
+make db-reset         # Reset DB (drop + recreate + migrate + seed)
+make db-migrate       # Run pending migrations
+make db-push          # Push migrations to remote database
 ```
 
 ### Environment Variables
@@ -74,15 +84,19 @@ downtex/
 │       ├── crypto.server.ts
 │       ├── permissions.server.ts
 │       └── env.server.ts
-├── .specify/                 # Speckit workspace (see below)
+├── specs/                    # Feature specs (001-…, 002-…, etc.)
+├── .specify/                 # Speckit workspace
 │   ├── memory/
 │   │   └── constitution.md   # Project principles — do not edit manually
-│   ├── templates/
-│   └── specs/                # Feature specs go here (0001-…, 0002-…, etc.)
+│   └── templates/
 ├── supabase/
 │   └── migrations/           # Database migrations
+├── tests/
+│   ├── unit/                 # Vitest unit tests
+│   └── e2e/                  # Playwright E2E tests
 ├── Makefile                  # Common tasks (make dev, make check, etc.)
 ├── Dockerfile
+├── docker-compose.yml
 └── README.md
 ```
 
@@ -92,7 +106,7 @@ downtex/
 
 Downtex uses **[GitHub Spec Kit](https://github.com/github/spec-kit)** for all feature development. Every feature goes through the same structured pipeline: spec → plan → tasks → implement. This keeps the codebase consistent and makes it easy to onboard new contributors.
 
-New features start from `0001` onwards.
+New features start from `001` onwards.
 
 ### Step 0 — Install Spec Kit (once)
 
@@ -128,7 +142,7 @@ current document content after a confirmation dialog. They can also name or
 rename a snapshot from this panel.
 ```
 
-Speckit will create a new directory under `.specify/specs/` with an auto-incremented number, e.g. `.specify/specs/0002-version-history/spec.md`.
+Speckit will create a new directory under `specs/` with an auto-incremented number, e.g. `specs/002-version-history/spec.md`.
 
 > Always check the generated `spec.md` before moving on. Push back on Claude Code if anything is missing or over-specified.
 
@@ -205,7 +219,7 @@ These come from `constitution.md` and must be respected in every spec and plan:
 
 | # | Feature | Status |
 |---|---|---|
-| — | _No specs yet — use `/speckit.specify` to create the first one_ | — |
+| 001 | Collaborative Academic Editor | Implemented |
 
 Update this table when you add a new spec.
 
@@ -213,14 +227,17 @@ Update this table when you add a new spec.
 
 ## Deployment
 
-Downtex self-hosts on a VPS via [Coolify](https://coolify.io/). Pushes to `main` trigger a GitHub Actions pipeline that builds the Docker image and signals Coolify to redeploy.
+Downtex self-hosts on a VPS via [Coolify](https://coolify.io/). CI runs typecheck, lint, and tests in parallel on every push. On `main`, the pipeline also builds the Docker image.
 
 ```bash
 # Build the Docker image locally to check for issues
-docker build -t downtex .
+make docker-build
 
-# Run locally against your .env
-docker run --env-file .env -p 3000:3000 downtex
+# Start all services locally (app + postgres)
+make docker-up
+
+# Tail logs
+make docker-logs
 ```
 
 See `.github/workflows/ci.yml` for the full CI pipeline.
@@ -231,5 +248,5 @@ See `.github/workflows/ci.yml` for the full CI pipeline.
 
 1. Open an issue describing the feature or bug
 2. Follow the speckit workflow above — every feature needs a spec before code
-3. Open a PR from your feature branch (`0002-feature-name`) to `main`
+3. Open a PR from your feature branch (`002-feature-name`) to `main`
 4. Include a link to the spec directory in the PR description
