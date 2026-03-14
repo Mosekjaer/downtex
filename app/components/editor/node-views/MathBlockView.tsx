@@ -13,7 +13,10 @@ export function MathBlockView({ node, updateAttributes, selected }: NodeViewProp
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
-      textareaRef.current.focus();
+      // Use rAF to ensure DOM is flushed before focusing
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
     }
   }, [isEditing]);
 
