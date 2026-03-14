@@ -9,7 +9,6 @@ import {
 } from "react-router";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { requireAuth } from "~/lib/supabase.server";
-import { getSupabaseClient } from "~/lib/supabase.client";
 import { getUserWorkspaceRole, requireRole } from "~/lib/permissions.server";
 import { FolderTree } from "~/components/sidebar/FolderTree";
 import { SearchBar } from "~/components/sidebar/SearchBar";
@@ -661,9 +660,11 @@ export default function WorkspaceLayout() {
               </Link>
               <button
                 onClick={() => {
-                  const supabase = getSupabaseClient();
-                  void supabase.auth.signOut().then(() => {
-                    window.location.href = "/login";
+                  void import("~/lib/supabase.client").then(({ getSupabaseClient }) => {
+                    const supabase = getSupabaseClient();
+                    void supabase.auth.signOut().then(() => {
+                      window.location.href = "/login";
+                    });
                   });
                 }}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-500 transition-colors hover:bg-zinc-200/60 hover:text-zinc-700"

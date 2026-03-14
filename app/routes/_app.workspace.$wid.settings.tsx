@@ -77,6 +77,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     connectedRepos: (repos ?? []) as ConnectedRepo[],
     userId: user.id,
     userRole: role,
+    isEditor: hasMinimumRole(role, "editor"),
   };
 }
 
@@ -249,8 +250,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function WorkspaceSettings() {
-  const { workspace, members, connectedRepos, userId, userRole } =
-    useLoaderData<typeof loader>();
+  const { workspace, members, connectedRepos, userId, isEditor } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const params = useParams();
@@ -258,9 +258,34 @@ export default function WorkspaceSettings() {
   const [wsName, setWsName] = useState(workspace?.name ?? "");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
-  const [repoInput, setRepoInput] = useState("");
+  const [selectedRepo, setSelectedRepo] = useState("");
+  const [githubRepos, setGithubRepos] = useState<{ fullName: string; name: string }[]>([]);
+  const [reposLoading, setReposLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [reposFetched, setReposFetched] = useState(false);
 
-  const isEditor = hasMinimumRole(userRole, "editor");
+  function fetchGithubRepos() {
+    if (reposFetched || reposLoading) return;
+    setReposLoading(true);
+    setReposError(null);
+    fetch("/api/github-repos")
+      .then((res) => res.json())
+      .then((data: { repos: { fullName: string; name: string }[]; error?: string }) => {
+        if (data.error === "no_token") {
+          setReposError("No GitHub token. Sign out and sign in with GitHub to connect repos.");
+        } else if (data.error) {
+          setReposError("Failed to load repositories.");
+        } else {
+          setGithubRepos(data.repos);
+        }
+        setReposFetched(true);
+      })
+      .catch(() => {
+        setReposError("Failed to load repositories.");
+        setReposFetched(true);
+      })
+      .finally(() => setReposLoading(false));
+  }
 
   const fetcherData = fetcher.data as
     | { ok?: boolean; error?: string; deleted?: boolean }
@@ -480,29 +505,46 @@ export default function WorkspaceSettings() {
             </div>
           )}
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              fetcher.submit(
-                { intent: "connect-repo", githubRepo: repoInput },
-                { method: "post" },
-              );
-              setRepoInput("");
-            }}
-            className="flex items-end gap-3"
-          >
+          <div className="flex items-end gap-3">
             <div className="flex-1">
-              <Input
-                label="GitHub repository"
-                placeholder="owner/repo"
-                value={repoInput}
-                onChange={(e) => setRepoInput(e.target.value)}
-              />
+              <label className="mb-1 block text-sm font-medium text-zinc-700">
+                GitHub repository
+              </label>
+              <select
+                value={selectedRepo}
+                onChange={(e) => setSelectedRepo(e.target.value)}
+                onFocus={fetchGithubRepos}
+                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+              >
+                <option value="">
+                  {reposLoading
+                    ? "Loading repositories..."
+                    : reposFetched && githubRepos.length === 0
+                      ? "No repositories found"
+                      : "Select a repository"}
+                </option>
+                {githubRepos.map((repo) => (
+                  <option key={repo.fullName} value={repo.fullName}>
+                    {repo.fullName}
+                  </option>
+                ))}
+              </select>
+              {reposError && <p className="mt-1 text-xs text-red-600">{reposError}</p>}
             </div>
-            <Button type="submit" disabled={!repoInput.trim()}>
+            <Button
+              onClick={() => {
+                if (!selectedRepo) return;
+                fetcher.submit(
+                  { intent: "connect-repo", githubRepo: selectedRepo },
+                  { method: "post" },
+                );
+                setSelectedRepo("");
+              }}
+              disabled={!selectedRepo}
+            >
               Connect
             </Button>
-          </form>
+          </div>
         </section>
       )}
 
