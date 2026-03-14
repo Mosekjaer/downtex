@@ -194,22 +194,26 @@ body {
   overflow: hidden;
 }
 
+/* Structural only — no borders or backgrounds here */
 .editor-content th,
 .editor-content td {
-  border: 1px solid #d4d4d8;
   padding: 0.4em 0.6em;
   vertical-align: top;
   position: relative;
   min-width: 80px;
 }
 
-.editor-content th {
+/* Default table visual styles (applied when no table-style-* class) */
+.editor-content table:not([class*="table-style-"]) th,
+.editor-content table:not([class*="table-style-"]) td {
+  border: 1px solid #d4d4d8;
+}
+.editor-content table:not([class*="table-style-"]) th {
   background: #f4f4f5;
   font-weight: 600;
   text-align: left;
 }
-
-.editor-content td {
+.editor-content table:not([class*="table-style-"]) td {
   background: white;
 }
 
@@ -245,51 +249,92 @@ body {
 
 /* ─── Table style presets ─── */
 
-.editor-content table.table-style-academic {
-  border-collapse: collapse;
-  border-top: 2px solid #1a1a1a;
-  border-bottom: 2px solid #1a1a1a;
-}
-.editor-content table.table-style-academic th,
-.editor-content table.table-style-academic td {
-  border-left: none;
-  border-right: none;
-  border-top: none;
-  border-bottom: 1px solid #d4d4d8;
-}
-.editor-content table.table-style-academic th {
-  border-bottom: 1px solid #1a1a1a;
+/* Minimal — clean, no borders, only a bottom divider on header */
+.editor-content table.table-style-minimal th,
+.editor-content table.table-style-minimal td {
+  border: none;
   background: transparent;
 }
+.editor-content table.table-style-minimal th {
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 2px solid #27272a;
+  padding-bottom: 0.5em;
+}
+.editor-content table.table-style-minimal td {
+  border-bottom: 1px solid #f4f4f5;
+}
+.editor-content table.table-style-minimal tbody tr:last-child td {
+  border-bottom: none;
+}
 
-.editor-content table.table-style-striped th,
-.editor-content table.table-style-striped td {
+/* Elegant — soft header tint, rounded outer, thin inner lines */
+.editor-content table.table-style-elegant {
   border: 1px solid #e4e4e7;
+  border-radius: 8px;
+  overflow: hidden;
 }
-.editor-content table.table-style-striped th {
-  background: #f4f4f5;
-}
-.editor-content table.table-style-striped tr:nth-child(even) td {
-  background: #fafafa;
-}
-
-.editor-content table.table-style-bordered th,
-.editor-content table.table-style-bordered td {
-  border: 2px solid #a1a1aa;
-}
-.editor-content table.table-style-bordered th {
-  background: #f4f4f5;
-}
-
-.editor-content table.table-style-modern th,
-.editor-content table.table-style-modern td {
+.editor-content table.table-style-elegant th,
+.editor-content table.table-style-elegant td {
   border: none;
   border-bottom: 1px solid #e4e4e7;
 }
-.editor-content table.table-style-modern th {
-  background: oklch(0.52 0.2 265);
-  color: white;
+.editor-content table.table-style-elegant th {
+  background: #fafaf9;
   font-weight: 600;
+  text-align: left;
+  color: #3f3f46;
+  letter-spacing: 0.01em;
+}
+.editor-content table.table-style-elegant td {
+  background: white;
+}
+.editor-content table.table-style-elegant tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Striped — alternating warm gray rows, no vertical lines */
+.editor-content table.table-style-striped th,
+.editor-content table.table-style-striped td {
+  border: none;
+  border-bottom: 1px solid #e4e4e7;
+}
+.editor-content table.table-style-striped th {
+  background: #27272a;
+  color: #fafafa;
+  font-weight: 600;
+  text-align: left;
+  letter-spacing: 0.02em;
+}
+.editor-content table.table-style-striped td {
+  background: white;
+}
+.editor-content table.table-style-striped tbody tr:nth-child(odd) td {
+  background: #fafafa;
+}
+
+/* Research — LaTeX booktabs style, three-rule design */
+.editor-content table.table-style-research {
+  border-top: 2px solid #18181b;
+  border-bottom: 2px solid #18181b;
+}
+.editor-content table.table-style-research th,
+.editor-content table.table-style-research td {
+  border: none;
+  background: transparent;
+  padding: 0.45em 0.7em;
+}
+.editor-content table.table-style-research th {
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 1px solid #18181b;
+  font-variant-numeric: lining-nums;
+}
+.editor-content table.table-style-research td {
+  border-bottom: 1px solid #e4e4e7;
+}
+.editor-content table.table-style-research tbody tr:last-child td {
+  border-bottom: none;
 }
 
 /* ─── Math rendering styles ─── */

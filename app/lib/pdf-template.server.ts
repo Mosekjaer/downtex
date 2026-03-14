@@ -29,16 +29,24 @@ const pdfFontFaces = `
 `;
 
 const pdfTableStyles = `
-table.table-style-academic { border-collapse: collapse; border-top: 2px solid #1a1a1a; border-bottom: 2px solid #1a1a1a; }
-table.table-style-academic th, table.table-style-academic td { border-left: none; border-right: none; border-top: none; border-bottom: 1px solid #d4d4d8; }
-table.table-style-academic th { border-bottom: 1px solid #1a1a1a; background: transparent; }
-table.table-style-striped th, table.table-style-striped td { border: 1px solid #e4e4e7; }
-table.table-style-striped th { background: #f4f4f5; }
-table.table-style-striped tr:nth-child(even) td { background: #fafafa; }
-table.table-style-bordered th, table.table-style-bordered td { border: 2px solid #a1a1aa; }
-table.table-style-bordered th { background: #f4f4f5; }
-table.table-style-modern th, table.table-style-modern td { border: none; border-bottom: 1px solid #e4e4e7; }
-table.table-style-modern th { background: #4a5da8; color: white; font-weight: 600; }
+table.table-style-minimal th, table.table-style-minimal td { border: none; background: transparent; }
+table.table-style-minimal th { font-weight: 600; border-bottom: 2px solid #27272a; padding-bottom: 0.5em; }
+table.table-style-minimal td { border-bottom: 1px solid #f4f4f5; }
+table.table-style-minimal tbody tr:last-child td { border-bottom: none; }
+table.table-style-elegant { border: 1px solid #e4e4e7; border-radius: 8px; overflow: hidden; }
+table.table-style-elegant th, table.table-style-elegant td { border: none; border-bottom: 1px solid #e4e4e7; }
+table.table-style-elegant th { background: #fafaf9; font-weight: 600; color: #3f3f46; }
+table.table-style-elegant td { background: white; }
+table.table-style-elegant tbody tr:last-child td { border-bottom: none; }
+table.table-style-striped th, table.table-style-striped td { border: none; border-bottom: 1px solid #e4e4e7; }
+table.table-style-striped th { background: #27272a; color: #fafafa; font-weight: 600; }
+table.table-style-striped td { background: white; }
+table.table-style-striped tbody tr:nth-child(odd) td { background: #fafafa; }
+table.table-style-research { border-top: 2px solid #18181b; border-bottom: 2px solid #18181b; }
+table.table-style-research th, table.table-style-research td { border: none; background: transparent; padding: 0.45em 0.7em; }
+table.table-style-research th { font-weight: 600; border-bottom: 1px solid #18181b; }
+table.table-style-research td { border-bottom: 1px solid #e4e4e7; }
+table.table-style-research tbody tr:last-child td { border-bottom: none; }
 mark { padding: 0.1em 0.2em; border-radius: 2px; }
 `;
 
