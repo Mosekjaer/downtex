@@ -78,6 +78,8 @@ See `.env.example`. Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SER
 ## Active Technologies
 - TypeScript 5.x (strict mode), React 18+ + Tiptap 3.20.1 (+ TextStyle, Color, TextAlign, Superscript, Subscript, Highlight extensions), KaTeX 0.16.38, Yjs (002-rich-text-formatting)
 - Supabase PostgreSQL — no new tables; formatting stored in existing `yjs_state` bytea column via ProseMirror marks/attributes (002-rich-text-formatting)
+- TypeScript 5.x (strict mode) + React 18, React Router 7 (SSR), Tiptap 3.20.1, Yjs, Supabase JS client, Puppeteer 24.x (003-github-figure-sync)
+- Supabase PostgreSQL + Supabase Storage (new `figures` bucket) (003-github-figure-sync)
 
 ## Recent Changes
 - 002-rich-text-formatting: Added TypeScript 5.x (strict mode), React 18+ + Tiptap 3.20.1 (+ TextStyle, Color, TextAlign, Superscript, Subscript, Highlight extensions), KaTeX 0.16.38, Yjs
