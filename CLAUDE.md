@@ -74,3 +74,10 @@ Key tables: `users`, `workspaces`, `workspace_members`, `documents`, `folders`, 
 ## Environment Variables
 
 See `.env.example`. Required: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ENCRYPTION_KEY` (32-byte hex for AES-256-GCM), `SESSION_SECRET`, `APP_URL`, plus OAuth client IDs/secrets.
+
+## Active Technologies
+- TypeScript 5.x (strict mode), React 18+ + Tiptap 3.20.1 (+ TextStyle, Color, TextAlign, Superscript, Subscript, Highlight extensions), KaTeX 0.16.38, Yjs (002-rich-text-formatting)
+- Supabase PostgreSQL — no new tables; formatting stored in existing `yjs_state` bytea column via ProseMirror marks/attributes (002-rich-text-formatting)
+
+## Recent Changes
+- 002-rich-text-formatting: Added TypeScript 5.x (strict mode), React 18+ + Tiptap 3.20.1 (+ TextStyle, Color, TextAlign, Superscript, Subscript, Highlight extensions), KaTeX 0.16.38, Yjs
