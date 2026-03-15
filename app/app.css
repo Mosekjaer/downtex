@@ -453,3 +453,42 @@ body {
   text-align: center;
   user-select: none;
 }
+
+/* ── Figure selection & resize handles ── */
+
+/* No outline on the figure wrapper itself */
+.drawio-figure.ProseMirror-selectednode,
+.drawio-figure--selected {
+  outline: none;
+}
+
+/* Selection ring on the image container */
+.drawio-figure__image-container--selected {
+  outline: 2px solid oklch(0.59 0.2 265 / 0.6);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Resize handles */
+.figure-resize-handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: oklch(0.59 0.2 265);
+  border-radius: 50%;
+  z-index: 10;
+  pointer-events: auto;
+  box-shadow: 0 0 0 2px white;
+}
+
+.figure-resize-handle--se {
+  bottom: -4px;
+  right: -4px;
+  cursor: nwse-resize;
+}
+
+.figure-resize-handle--sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: nesw-resize;
+}

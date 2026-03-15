@@ -1,15 +1,15 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import type { EditorView } from "@tiptap/pm/view";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import { FigureView } from "../node-views/FigureView";
 
 /**
  * Figure extension for GitHub-sourced images and Draw.io diagrams.
  *
- * Renders a block node with a static cached image (or loading placeholder),
- * plus an editable caption below prefixed with "Figur N: ".
- * Figures are auto-numbered via a ProseMirror plugin that maintains
- * a {figureId → number} mapping.
+ * Renders a block node with a cached image (or loading placeholder),
+ * an editable caption, and interactive controls (resize, align, crop).
+ * Figures are auto-numbered via a ProseMirror plugin.
  */
 
 export const figureNumberingPluginKey = new PluginKey<Map<string, number>>("figureNumbering");
@@ -26,8 +26,32 @@ declare module "@tiptap/core" {
         imageUrl?: string;
         fileType?: string;
       }) => ReturnType;
+      setFigureAlignment: (alignment: "left" | "center" | "right") => ReturnType;
+      setFigureWidth: (width: string) => ReturnType;
+      setFigureCrop: (crop: {
+        cropX: number;
+        cropY: number;
+        cropWidth: number;
+        cropHeight: number;
+      }) => ReturnType;
+      removeFigureCrop: () => ReturnType;
     };
   }
+}
+
+/**
+ * Find the figure node at or around the current selection.
+ * The selection may be inside the caption (inline content).
+ */
+function findFigureAround(state: { selection: { $from: { depth: number; node: (d: number) => ProseMirrorNode; before: (d: number) => number } } }) {
+  const { $from } = state.selection;
+  for (let d = $from.depth; d >= 0; d--) {
+    const node = $from.node(d);
+    if (node.type.name === "figure") {
+      return { node, pos: $from.before(d) };
+    }
+  }
+  return null;
 }
 
 export const Figure = Node.create({
@@ -73,6 +97,42 @@ export const Figure = Node.create({
         default: "active",
         parseHTML: (element) => element.getAttribute("data-figure-status") || "active",
       },
+      alignment: {
+        default: "center",
+        parseHTML: (element) => element.getAttribute("data-alignment") || "center",
+      },
+      width: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-width") || null,
+      },
+      cropX: {
+        default: null,
+        parseHTML: (element) => {
+          const v = element.getAttribute("data-crop-x");
+          return v ? Number(v) : null;
+        },
+      },
+      cropY: {
+        default: null,
+        parseHTML: (element) => {
+          const v = element.getAttribute("data-crop-y");
+          return v ? Number(v) : null;
+        },
+      },
+      cropWidth: {
+        default: null,
+        parseHTML: (element) => {
+          const v = element.getAttribute("data-crop-width");
+          return v ? Number(v) : null;
+        },
+      },
+      cropHeight: {
+        default: null,
+        parseHTML: (element) => {
+          const v = element.getAttribute("data-crop-height");
+          return v ? Number(v) : null;
+        },
+      },
     };
   },
 
@@ -87,6 +147,20 @@ export const Figure = Node.create({
   renderHTML({ node }) {
     const imgSrc = node.attrs.svgUrl || node.attrs.imageUrl;
     const isError = node.attrs.figureStatus === "error";
+    const alignment = node.attrs.alignment as string;
+    const width = node.attrs.width as string | null;
+
+    const figureStyle = alignmentToMarginStyle(alignment);
+
+    // Build crop clip-path if set
+    let imgStyle = `max-width:100%;height:auto;border-radius:6px;${isError ? "opacity:0.5;" : ""}`;
+    if (width) {
+      imgStyle += `width:${width};`;
+    }
+    const clipPath = buildClipPath(node.attrs);
+    if (clipPath) {
+      imgStyle += `clip-path:${clipPath};`;
+    }
 
     const previewContent = imgSrc
       ? [
@@ -94,7 +168,7 @@ export const Figure = Node.create({
           {
             src: imgSrc,
             alt: node.attrs.caption || "Figure",
-            style: `max-width:100%;height:auto;border-radius:6px;${isError ? "opacity:0.5;" : ""}`,
+            style: imgStyle,
           },
         ]
       : [
@@ -131,20 +205,20 @@ export const Figure = Node.create({
       ]);
     }
 
-    // Editable caption with number prefix rendered by NodeView
     children.push([
       "figcaption",
       {
         class: "drawio-figure__caption",
         style: "text-align:center;font-size:0.875rem;color:#52525b;margin-top:0.5rem;",
       },
-      0, // hole for inline content (caption)
+      0,
     ]);
 
     return [
       "figure",
       mergeAttributes({
         class: "drawio-figure",
+        style: figureStyle,
         "data-figure-id": node.attrs.figureId,
         "data-github-repo": node.attrs.githubRepo,
         "data-github-path": node.attrs.githubPath,
@@ -153,109 +227,19 @@ export const Figure = Node.create({
         "data-image-url": node.attrs.imageUrl,
         "data-file-type": node.attrs.fileType,
         "data-figure-status": node.attrs.figureStatus,
+        "data-alignment": node.attrs.alignment,
+        "data-width": node.attrs.width,
+        "data-crop-x": node.attrs.cropX,
+        "data-crop-y": node.attrs.cropY,
+        "data-crop-width": node.attrs.cropWidth,
+        "data-crop-height": node.attrs.cropHeight,
       }),
       ...children,
     ] as unknown as [string, Record<string, unknown>, ...unknown[]];
   },
 
   addNodeView() {
-    return ({ node, editor }) => {
-      // Outer figure element
-      const dom = document.createElement("figure");
-      dom.classList.add("drawio-figure");
-      dom.style.cssText = "margin:1rem 0;";
-
-      // Image preview area (non-editable)
-      const preview = document.createElement("div");
-      preview.classList.add("drawio-figure__preview");
-      preview.contentEditable = "false";
-      updatePreview(preview, node);
-      dom.appendChild(preview);
-
-      // Error overlay
-      const errorEl = document.createElement("div");
-      errorEl.classList.add("drawio-figure__error");
-      errorEl.contentEditable = "false";
-      errorEl.style.cssText =
-        "text-align:center;font-size:0.75rem;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:4px 8px;margin-top:4px;display:none;";
-      errorEl.textContent = "Source file unavailable";
-      if (node.attrs.figureStatus === "error") {
-        errorEl.style.display = "block";
-      }
-      dom.appendChild(errorEl);
-
-      // Caption area with "Figur N: " prefix
-      const captionWrapper = document.createElement("figcaption");
-      captionWrapper.classList.add("drawio-figure__caption");
-      captionWrapper.style.cssText =
-        "text-align:center;font-size:0.875rem;color:#52525b;margin-top:0.5rem;";
-
-      // Non-editable "Figur N: " prefix
-      const numberPrefix = document.createElement("span");
-      numberPrefix.classList.add("drawio-figure__number");
-      numberPrefix.contentEditable = "false";
-      numberPrefix.style.cssText = "font-weight:600;color:#27272a;user-select:none;";
-      captionWrapper.appendChild(numberPrefix);
-
-      // Editable caption content (contentDOM hole)
-      const contentDOM = document.createElement("span");
-      contentDOM.classList.add("drawio-figure__caption-text");
-      captionWrapper.appendChild(contentDOM);
-      dom.appendChild(captionWrapper);
-
-      // Update the figure number from plugin state
-      function updateNumber(view: EditorView) {
-        const pluginState = figureNumberingPluginKey.getState(view.state);
-        const figureId = node.attrs.figureId as string;
-        const num = pluginState?.get(figureId);
-        numberPrefix.textContent = num ? `Figur ${num}: ` : "Figur: ";
-      }
-
-      // Initial number update (deferred to ensure plugin state is available)
-      setTimeout(() => {
-        if (editor.view) updateNumber(editor.view);
-      }, 0);
-
-      return {
-        dom,
-        contentDOM,
-        update(updatedNode) {
-          if (updatedNode.type.name !== "figure") return false;
-          node = updatedNode;
-          updatePreview(preview, updatedNode);
-
-          // Update error state
-          errorEl.style.display = updatedNode.attrs.figureStatus === "error" ? "block" : "none";
-
-          // Update figure number
-          if (editor.view) updateNumber(editor.view);
-
-          return true;
-        },
-        selectNode() {
-          dom.classList.add("ProseMirror-selectednode");
-        },
-        deselectNode() {
-          dom.classList.remove("ProseMirror-selectednode");
-        },
-        ignoreMutation(mutation) {
-          // Ignore mutations in the non-editable areas
-          if (mutation.target === preview || preview.contains(mutation.target as globalThis.Node)) {
-            return true;
-          }
-          if (mutation.target === errorEl || errorEl.contains(mutation.target as globalThis.Node)) {
-            return true;
-          }
-          if (
-            mutation.target === numberPrefix ||
-            numberPrefix.contains(mutation.target as globalThis.Node)
-          ) {
-            return true;
-          }
-          return false;
-        },
-      };
-    };
+    return ReactNodeViewRenderer(FigureView);
   },
 
   addCommands() {
@@ -268,6 +252,52 @@ export const Figure = Node.create({
             attrs,
             content: attrs.caption ? [{ type: "text", text: attrs.caption }] : [],
           });
+        },
+      setFigureAlignment:
+        (alignment) =>
+        ({ state, dispatch }) => {
+          const found = findFigureAround(state);
+          if (!found || !dispatch) return false;
+          const { tr } = state;
+          tr.setNodeMarkup(found.pos, undefined, { ...found.node.attrs, alignment });
+          dispatch(tr);
+          return true;
+        },
+      setFigureWidth:
+        (width) =>
+        ({ state, dispatch }) => {
+          const found = findFigureAround(state);
+          if (!found || !dispatch) return false;
+          const { tr } = state;
+          tr.setNodeMarkup(found.pos, undefined, { ...found.node.attrs, width });
+          dispatch(tr);
+          return true;
+        },
+      setFigureCrop:
+        (crop) =>
+        ({ state, dispatch }) => {
+          const found = findFigureAround(state);
+          if (!found || !dispatch) return false;
+          const { tr } = state;
+          tr.setNodeMarkup(found.pos, undefined, { ...found.node.attrs, ...crop });
+          dispatch(tr);
+          return true;
+        },
+      removeFigureCrop:
+        () =>
+        ({ state, dispatch }) => {
+          const found = findFigureAround(state);
+          if (!found || !dispatch) return false;
+          const { tr } = state;
+          tr.setNodeMarkup(found.pos, undefined, {
+            ...found.node.attrs,
+            cropX: null,
+            cropY: null,
+            cropWidth: null,
+            cropHeight: null,
+          });
+          dispatch(tr);
+          return true;
         },
     };
   },
@@ -291,7 +321,6 @@ export const Figure = Node.create({
         view() {
           return {
             update(view) {
-              // After each transaction, update all figure number prefixes in the DOM
               const map = figureNumberingPluginKey.getState(view.state);
               if (!map) return;
 
@@ -299,7 +328,6 @@ export const Figure = Node.create({
               figures.forEach((el) => {
                 const figureEl = el.closest(".drawio-figure");
                 if (!figureEl) return;
-                // Walk the ProseMirror doc to find the figure node at this DOM position
                 const pos = view.posAtDOM(figureEl, 0);
                 const resolvedPos = view.state.doc.resolve(pos);
                 const figureNode =
@@ -320,35 +348,6 @@ export const Figure = Node.create({
   },
 });
 
-function updatePreview(preview: HTMLDivElement, node: ProseMirrorNode): void {
-  const imgSrc = (node.attrs.svgUrl as string) || (node.attrs.imageUrl as string);
-  const isError = node.attrs.figureStatus === "error";
-
-  if (imgSrc) {
-    // Only re-render if src actually changed
-    const existingImg = preview.querySelector("img");
-    if (existingImg?.src === imgSrc) {
-      existingImg.style.opacity = isError ? "0.5" : "1";
-      return;
-    }
-
-    preview.innerHTML = "";
-    const img = document.createElement("img");
-    img.src = imgSrc;
-    img.alt = (node.attrs.caption as string) || "Figure";
-    img.style.cssText = `max-width:100%;height:auto;border-radius:6px;${isError ? "opacity:0.5;" : ""}`;
-    preview.appendChild(img);
-  } else {
-    preview.innerHTML = "";
-    const placeholder = document.createElement("div");
-    placeholder.classList.add("drawio-figure__placeholder");
-    placeholder.style.cssText =
-      "width:100%;height:200px;display:flex;align-items:center;justify-content:center;border:2px dashed #d4d4d8;border-radius:6px;color:#a1a1aa;font-size:14px;";
-    placeholder.textContent = "Loading figure...";
-    preview.appendChild(placeholder);
-  }
-}
-
 function buildFigureNumberMap(doc: ProseMirrorNode): Map<string, number> {
   const map = new Map<string, number>();
   let counter = 0;
@@ -361,4 +360,25 @@ function buildFigureNumberMap(doc: ProseMirrorNode): Map<string, number> {
     return true;
   });
   return map;
+}
+
+function alignmentToMarginStyle(alignment: string): string {
+  switch (alignment) {
+    case "left":
+      return "margin-right:auto;";
+    case "right":
+      return "margin-left:auto;";
+    default:
+      return "margin-left:auto;margin-right:auto;";
+  }
+}
+
+function buildClipPath(attrs: Record<string, unknown>): string | null {
+  const { cropX, cropY, cropWidth, cropHeight } = attrs;
+  if (cropX == null || cropY == null || cropWidth == null || cropHeight == null) return null;
+  const top = cropY as number;
+  const left = cropX as number;
+  const right = 100 - (left + (cropWidth as number));
+  const bottom = 100 - (top + (cropHeight as number));
+  return `inset(${top}% ${right}% ${bottom}% ${left}%)`;
 }
