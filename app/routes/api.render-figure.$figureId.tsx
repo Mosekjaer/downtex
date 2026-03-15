@@ -1,15 +1,20 @@
 import type { ActionFunctionArgs } from "react-router";
 import { createServiceRoleClient } from "~/lib/supabase.server";
-import { getFileContent, getFileContentRaw, getUserGitHubToken } from "~/lib/github.server";
-import { convertDrawioToSvg } from "~/lib/drawio.server";
+import { getUserGitHubToken } from "~/lib/github.server";
+import { convertDrawioToSvg, fetchImageBuffer, getDrawioRawUrl } from "~/lib/drawio.server";
 import { env } from "~/lib/env.server";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const CONTENT_TYPES: Record<string, string> = {
+  svg: "image/svg+xml",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+};
 
 export async function action({ request, params }: ActionFunctionArgs) {
   const figureId = params.figureId ?? "";
 
-  // Accept either service-role key or user auth
   const authHeader = request.headers.get("Authorization");
   const isServiceRole = authHeader === `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`;
 
@@ -29,11 +34,6 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
   if (!figure) {
     return Response.json({ error: "Figure not found" }, { status: 404 });
-  }
-
-  const workspaceId = (figure.documents as unknown as { workspace_id: string })?.workspace_id;
-  if (!workspaceId) {
-    return Response.json({ error: "Document workspace not found" }, { status: 404 });
   }
 
   // Get a GitHub token: try connected_by user, fallback to service token
@@ -59,40 +59,39 @@ export async function action({ request, params }: ActionFunctionArgs) {
     return Response.json({ error: "No GitHub token available" }, { status: 401 });
   }
 
+  const workspaceId = (figure.documents as unknown as { workspace_id: string })?.workspace_id;
+  if (!workspaceId) {
+    await supabase
+      .from("figures")
+      .update({ status: "error", error_message: "Document has no workspace" })
+      .eq("id", figureId);
+    return Response.json({ error: "Document has no workspace" }, { status: 500 });
+  }
+
   try {
+    const rawUrl = getDrawioRawUrl(figure.github_repo, figure.github_path);
+    const fileType = figure.file_type || "png";
+    const isDrawio = fileType === "drawio";
+
+    // 1. Download the file from GitHub
+    const rawBuffer = await fetchImageBuffer(rawUrl, token);
+
+    // 2. Convert drawio XML → PNG if needed
     let imageBuffer: Buffer;
-    let format: string;
-
-    if (figure.file_type === "drawio") {
-      // Fetch .drawio XML and convert to SVG
-      const drawioXml = await getFileContent(token, figure.github_repo, figure.github_path);
-      imageBuffer = await convertDrawioToSvg(drawioXml);
-      format = "svg";
+    let storageFormat: string;
+    if (isDrawio) {
+      const xmlString = rawBuffer.toString("utf-8");
+      imageBuffer = await convertDrawioToSvg(xmlString);
+      // Export server produces PNG; Puppeteer fallback produces SVG
+      storageFormat = env.DRAWIO_EXPORT_URL ? "png" : "svg";
     } else {
-      // Fetch raw image
-      imageBuffer = await getFileContentRaw(token, figure.github_repo, figure.github_path);
-      format = figure.file_type || "png";
+      imageBuffer = rawBuffer;
+      storageFormat = fileType;
     }
 
-    // Check file size
-    if (imageBuffer.length > MAX_FILE_SIZE) {
-      await supabase
-        .from("figures")
-        .update({ status: "error", error_message: `File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit` })
-        .eq("id", figureId);
-      return Response.json({ error: "File too large" }, { status: 413 });
-    }
-
-    // Upload to Supabase Storage
-    const storagePath = `${workspaceId}/${figureId}.${format === "svg" ? "svg" : format}`;
-    const contentType =
-      format === "svg"
-        ? "image/svg+xml"
-        : format === "png"
-          ? "image/png"
-          : format === "gif"
-            ? "image/gif"
-            : "image/jpeg";
+    // 3. Upload to Supabase Storage
+    const storagePath = `${workspaceId}/${figure.id}.${storageFormat}`;
+    const contentType = CONTENT_TYPES[storageFormat] || "application/octet-stream";
 
     const { error: uploadError } = await supabase.storage
       .from("figures")
@@ -102,33 +101,32 @@ export async function action({ request, params }: ActionFunctionArgs) {
       });
 
     if (uploadError) {
-      await supabase
-        .from("figures")
-        .update({ status: "error", error_message: uploadError.message })
-        .eq("id", figureId);
-      return Response.json({ error: uploadError.message }, { status: 500 });
+      throw new Error(`Storage upload failed: ${uploadError.message}`);
     }
 
-    // Get a signed URL (valid for 1 year)
-    const { data: urlData } = await supabase.storage
-      .from("figures")
-      .createSignedUrl(storagePath, 365 * 24 * 60 * 60);
-
-    const cachedUrl = urlData?.signedUrl ?? null;
-
-    // Update figure record
+    // 4. Update the figure record with the storage path
     await supabase
       .from("figures")
       .update({
         cached_image_path: storagePath,
-        cached_image_format: format === "svg" ? "svg" : format,
+        cached_image_format: storageFormat,
         status: "active",
         error_message: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", figureId);
 
-    return Response.json({ ok: true, cachedImagePath: storagePath, cachedUrl });
+    // 5. Create a signed URL to return immediately
+    const { data: urlData } = await supabase.storage
+      .from("figures")
+      .createSignedUrl(storagePath, 60 * 60);
+
+    return Response.json({
+      ok: true,
+      cachedUrl: urlData?.signedUrl ?? null,
+      cachedFormat: storageFormat,
+      cachedImagePath: storagePath,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await supabase

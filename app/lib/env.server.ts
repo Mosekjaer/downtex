@@ -15,6 +15,7 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().min(1),
   APP_URL: z.url(),
   GITHUB_SERVICE_TOKEN: z.string().min(1).optional(),
+  DRAWIO_EXPORT_URL: z.url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

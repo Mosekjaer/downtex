@@ -261,21 +261,67 @@ export async function action({ request, params }: ActionFunctionArgs) {
         return { ok: false, error: "Missing required figure fields" };
       }
 
-      const { error: figureError } = await supabase.from("figures").insert({
-        document_id: documentId,
-        block_id: blockId,
-        github_repo: githubRepo,
-        github_path: githubPath,
-        file_type: fileType,
-        workspace_repository_id: workspaceRepositoryId || null,
-        status: "active",
-      });
+      const { data: figureData, error: figureError } = await supabase
+        .from("figures")
+        .insert({
+          document_id: documentId,
+          block_id: blockId,
+          github_repo: githubRepo,
+          github_path: githubPath,
+          file_type: fileType,
+          workspace_repository_id: workspaceRepositoryId || null,
+          status: "active",
+        })
+        .select("id")
+        .single();
 
-      if (figureError) {
-        return { ok: false, error: figureError.message };
+      if (figureError || !figureData) {
+        return { ok: false, error: figureError?.message ?? "Failed to insert figure" };
       }
 
-      return { ok: true };
+      // Trigger render — downloads from GitHub, uploads to Supabase Storage, returns signed URL
+      const appUrl = new URL(request.url).origin;
+      const renderUrl = `${appUrl}/api/render-figure/${figureData.id}`;
+      let cachedUrl: string | null = null;
+      let cachedFormat: string | null = null;
+      try {
+        const renderRes = await fetch(renderUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+        });
+        const renderData = (await renderRes.json()) as {
+          ok?: boolean;
+          cachedUrl?: string;
+          cachedFormat?: string;
+          error?: string;
+        };
+        if (renderRes.ok) {
+          cachedUrl = renderData.cachedUrl ?? null;
+          cachedFormat = renderData.cachedFormat ?? null;
+        } else {
+          return {
+            ok: false,
+            error: `Render failed: ${renderData.error ?? renderRes.status}`,
+            blockId,
+          };
+        }
+      } catch (err) {
+        return {
+          ok: false,
+          error: `Render request error: ${err instanceof Error ? err.message : String(err)}`,
+          blockId,
+        };
+      }
+
+      return {
+        ok: true,
+        figureId: figureData.id,
+        blockId: blockId,
+        cachedUrl,
+        cachedFormat,
+      };
     }
     case "restore-snapshot": {
       requireRole(role, "editor");

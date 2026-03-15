@@ -104,7 +104,7 @@ export const Figure = Node.create({
             style:
               "width:100%;height:200px;display:flex;align-items:center;justify-content:center;border:2px dashed #d4d4d8;border-radius:6px;color:#a1a1aa;font-size:14px;",
           },
-          "Rendering figure...",
+          "Loading figure...",
         ];
 
     const children: unknown[] = [
@@ -325,6 +325,13 @@ function updatePreview(preview: HTMLDivElement, node: ProseMirrorNode): void {
   const isError = node.attrs.figureStatus === "error";
 
   if (imgSrc) {
+    // Only re-render if src actually changed
+    const existingImg = preview.querySelector("img");
+    if (existingImg?.src === imgSrc) {
+      existingImg.style.opacity = isError ? "0.5" : "1";
+      return;
+    }
+
     preview.innerHTML = "";
     const img = document.createElement("img");
     img.src = imgSrc;
@@ -337,7 +344,7 @@ function updatePreview(preview: HTMLDivElement, node: ProseMirrorNode): void {
     placeholder.classList.add("drawio-figure__placeholder");
     placeholder.style.cssText =
       "width:100%;height:200px;display:flex;align-items:center;justify-content:center;border:2px dashed #d4d4d8;border-radius:6px;color:#a1a1aa;font-size:14px;";
-    placeholder.textContent = "Rendering figure...";
+    placeholder.textContent = "Loading figure...";
     preview.appendChild(placeholder);
   }
 }
