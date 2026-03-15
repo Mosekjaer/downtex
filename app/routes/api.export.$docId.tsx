@@ -4,6 +4,8 @@ import { requireAuth } from "~/lib/supabase.server";
 import { getUserDocumentRole, requireRole } from "~/lib/permissions.server";
 import { renderDocumentToHtml } from "~/lib/pdf-template.server";
 import { generatePdf } from "~/lib/pdf.server";
+import type { ReferenceSource, DocumentLayoutSettings } from "~/lib/citation-formatters";
+import { DEFAULT_SETTINGS } from "~/lib/citation-formatters";
 
 // ---- Yjs XML Fragment → ProseMirror JSON ----
 
@@ -137,8 +139,10 @@ export async function action({ request, params }: ActionFunctionArgs) {
     authors.push("Unknown Author");
   }
 
-  // 5. Decode Yjs state to ProseMirror JSON
+  // 5. Decode Yjs state to ProseMirror JSON + extract references & settings
   let content: PMNode = { type: "doc", content: [] };
+  let references: Record<string, ReferenceSource> = {};
+  let settings: DocumentLayoutSettings = { ...DEFAULT_SETTINGS };
 
   if (doc.yjs_state) {
     try {
@@ -152,6 +156,22 @@ export async function action({ request, params }: ActionFunctionArgs) {
       // TipTap uses "default" as the fragment name by default
       const fragment = ydoc.getXmlFragment("default");
       content = xmlFragmentToJson(fragment);
+
+      // Extract references map
+      const refsMap = ydoc.getMap("references");
+      refsMap.forEach((value, key) => {
+        references[key] = value as ReferenceSource;
+      });
+
+      // Extract document layout settings
+      const settingsMap = ydoc.getMap("docSettings");
+      for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof DocumentLayoutSettings)[]) {
+        const val = settingsMap.get(key);
+        if (val !== undefined) {
+          (settings as unknown as Record<string, unknown>)[key] = val;
+        }
+      }
+
       ydoc.destroy();
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -172,10 +192,12 @@ export async function action({ request, params }: ActionFunctionArgs) {
       day: "numeric",
     }),
     content,
+    references,
+    settings,
   });
 
   // 7. Generate PDF
-  const pdfBuffer = await generatePdf(html);
+  const pdfBuffer = await generatePdf(html, settings);
 
   // 8. Return PDF response
   const safeFilename = title.replace(/[^a-zA-Z0-9 _-]/g, "").trim() || "document";

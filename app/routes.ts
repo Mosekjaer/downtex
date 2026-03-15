@@ -28,6 +28,7 @@ export default [
   route("api/search-documents", "routes/api.search-documents.tsx"),
   route("api/snapshot/:docId", "routes/api.snapshot.$docId.tsx"),
   route("api/upload-figure", "routes/api.upload-figure.tsx"),
+  route("api/reference-lookup", "routes/api.reference-lookup.tsx"),
 
   // Public routes
   route("render/:docId", "routes/render.$docId.tsx"),

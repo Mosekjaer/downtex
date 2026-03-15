@@ -16,6 +16,7 @@ interface ToolbarProps {
   onInsertFigure?: () => void;
   onInsertFigureRef?: () => void;
   onInsertMention?: () => void;
+  onInsertReference?: () => void;
 }
 
 type Tab = "text" | "paragraph" | "insert" | "math" | "table";
@@ -34,6 +35,7 @@ export function Toolbar({
   onInsertFigure,
   onInsertFigureRef,
   onInsertMention,
+  onInsertReference,
 }: ToolbarProps) {
   const [activeTab, setActiveTab] = useState<Tab>("text");
   const rafRef = useRef(0);
@@ -107,6 +109,7 @@ export function Toolbar({
             onInsertFigure={onInsertFigure}
             onInsertFigureRef={onInsertFigureRef}
             onInsertMention={onInsertMention}
+            onInsertReference={onInsertReference}
           />
         )}
         {activeTab === "math" && <MathTab editor={editor} />}
@@ -292,12 +295,14 @@ function InsertTab({
   onInsertFigure,
   onInsertFigureRef,
   onInsertMention,
+  onInsertReference,
 }: {
   editor: Editor;
   onInsertImage?: () => void;
   onInsertFigure?: () => void;
   onInsertFigureRef?: () => void;
   onInsertMention?: () => void;
+  onInsertReference?: () => void;
 }) {
   return (
     <>
@@ -335,6 +340,11 @@ function InsertTab({
       {onInsertMention && (
         <ToolbarButton active={false} onClick={onInsertMention} title="Reference a document">
           @Doc
+        </ToolbarButton>
+      )}
+      {onInsertReference && (
+        <ToolbarButton active={false} onClick={onInsertReference} title="Insert reference">
+          Ref
         </ToolbarButton>
       )}
     </>

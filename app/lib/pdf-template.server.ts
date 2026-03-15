@@ -52,12 +52,17 @@ mark { padding: 0.1em 0.2em; border-radius: 2px; }
 
 // ---- Public API ----
 
+import type { ReferenceSource, DocumentLayoutSettings } from "~/lib/citation-formatters";
+import { getFormatter, DEFAULT_SETTINGS } from "~/lib/citation-formatters";
+
 export interface DocumentData {
   title: string;
   authors: string[];
   workspaceName: string;
   date: string;
   content: ProseMirrorNode;
+  references?: Record<string, ReferenceSource>;
+  settings?: DocumentLayoutSettings;
 }
 
 // ---- Figure numbering state ----
@@ -65,27 +70,79 @@ export interface DocumentData {
 let figureCounter = 0;
 const figureNumberMap = new Map<string, number>();
 
+// ---- Citation state (reset per render call) ----
+
+let citationReferences: Record<string, ReferenceSource> = {};
+let citationSettings: DocumentLayoutSettings = DEFAULT_SETTINGS;
+/** Tracks unique source IDs in order of first appearance */
+let citationOrder: string[] = [];
+/** Collects source IDs for bibliography */
+const bibliographySourceIds = new Set<string>();
+
 export function renderDocumentToHtml(doc: DocumentData): string {
   // Reset figure counter for this document
   figureCounter = 0;
   figureNumberMap.clear();
-  // Pre-scan to build figure number map
+
+  // Reset citation state
+  citationReferences = doc.references ?? {};
+  citationSettings = doc.settings ?? DEFAULT_SETTINGS;
+  citationOrder = [];
+  bibliographySourceIds.clear();
+
+  // Pre-scan to build figure number map and citation order
   walkNodes(doc.content, (n) => {
     if (n.type === "figure") {
       figureCounter++;
       const id = n.attrs?.figureId as string;
       if (id) figureNumberMap.set(id, figureCounter);
     }
+    if (n.type === "citation") {
+      const sourceId = n.attrs?.sourceId as string;
+      if (sourceId && !citationOrder.includes(sourceId)) {
+        citationOrder.push(sourceId);
+      }
+    }
   });
   figureCounter = 0; // Reset for rendering pass
 
   const bodyHtml = renderContent(doc.content);
   const headings = collectHeadings(doc.content);
-  const tocHtml = renderToc(headings);
+  const settings = doc.settings ?? DEFAULT_SETTINGS;
+  const tocHtml = settings.tocEnabled ? renderToc(headings, settings.tocDepth) : "";
   const footnoteHtml = renderFootnotes();
+  const bibliographyHtml = renderBibliography();
 
   // Reset footnotes for next call
   footnoteStore.length = 0;
+
+  // Build front page
+  const fpTitle = settings.frontPageTitle || doc.title;
+  const fpAuthors =
+    settings.frontPageAuthors || doc.authors.map(escapeHtml).join(", ") || "Unknown Author";
+  const fpDate = settings.frontPageDate || doc.date;
+
+  let frontPageHtml = "";
+  if (settings.frontPageEnabled) {
+    const subtitleLine = settings.frontPageSubtitle
+      ? `\n  <div class="subtitle">${escapeHtml(settings.frontPageSubtitle)}</div>`
+      : "";
+    const institutionLine = settings.frontPageInstitution
+      ? `\n  <div class="institution">${escapeHtml(settings.frontPageInstitution)}</div>`
+      : "";
+    const customLine = settings.frontPageCustomField
+      ? `\n  <div class="custom-field">${escapeHtml(settings.frontPageCustomField)}</div>`
+      : "";
+
+    frontPageHtml = `
+<!-- Front page -->
+<div class="front-page">
+  <h1>${escapeHtml(fpTitle)}</h1>${subtitleLine}
+  <div class="authors">${fpAuthors}</div>${institutionLine}
+  <div class="workspace">${escapeHtml(doc.workspaceName)}</div>
+  <div class="date">${escapeHtml(fpDate)}</div>${customLine}
+</div>`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -102,13 +159,7 @@ export function renderDocumentToHtml(doc: DocumentData): string {
 <span class="doc-title-string">${escapeHtml(doc.title)}</span>
 <span class="doc-workspace-string">${escapeHtml(doc.workspaceName)}</span>
 
-<!-- Front page -->
-<div class="front-page">
-  <h1>${escapeHtml(doc.title)}</h1>
-  <div class="authors">${doc.authors.map(escapeHtml).join(", ") || "Unknown Author"}</div>
-  <div class="workspace">${escapeHtml(doc.workspaceName)}</div>
-  <div class="date">${escapeHtml(doc.date)}</div>
-</div>
+${frontPageHtml}
 
 <!-- Table of contents -->
 ${tocHtml}
@@ -119,6 +170,8 @@ ${bodyHtml}
 </main>
 
 ${footnoteHtml}
+
+${bibliographyHtml}
 
 </body>
 </html>`;
@@ -255,6 +308,10 @@ function renderNode(node: ProseMirrorNode): string {
       return `<sup class="footnote-ref"><a href="#fn-${idx}" id="fnref-${idx}">[${idx}]</a></sup>`;
     }
 
+    case "citation": {
+      return renderCitationNode(node);
+    }
+
     case "hardBreak":
       return "<br />";
 
@@ -293,6 +350,10 @@ function renderText(node: ProseMirrorNode): string {
     footnoteStore.push(content);
     const idx = footnoteStore.length;
     return `<sup class="footnote-ref"><a href="#fn-${idx}" id="fnref-${idx}">[${idx}]</a></sup>`;
+  }
+
+  if (node.type === "citation") {
+    return renderCitationNode(node);
   }
 
   if (!node.text) {
@@ -451,15 +512,59 @@ function collectHeadings(node: ProseMirrorNode): Heading[] {
   return headings;
 }
 
-function renderToc(headings: Heading[]): string {
+function renderToc(headings: Heading[], maxDepth = 3): string {
   if (headings.length === 0) return "";
 
   let html = '<div class="toc">\n<h2>Table of Contents</h2>\n<ul>\n';
   for (const h of headings) {
-    if (h.level > 3) continue;
+    if (h.level > maxDepth) continue;
     html += `  <li class="toc-h${h.level}"><a href="#${escapeAttr(h.id)}">${escapeHtml(h.text)}</a></li>\n`;
   }
   html += "</ul>\n</div>";
+  return html;
+}
+
+// ---- Citations ----
+
+function renderCitationNode(node: ProseMirrorNode): string {
+  const sourceId = (node.attrs?.sourceId as string) ?? "";
+  const source = citationReferences[sourceId];
+  if (!source) {
+    return '<span class="citation citation-missing">[missing reference]</span>';
+  }
+
+  bibliographySourceIds.add(sourceId);
+
+  const formatter = getFormatter(citationSettings.citationStandard);
+  const order = citationOrder.indexOf(sourceId) + 1;
+  const inText = formatter.formatInText(source, order);
+
+  // Also add as footnote (unified numbering with general footnotes)
+  const footnoteText = formatter.formatFootnote(source);
+  footnoteStore.push(footnoteText);
+  const fnIdx = footnoteStore.length;
+
+  return `<sup class="footnote-ref"><a href="#fn-${fnIdx}" id="fnref-${fnIdx}">${escapeHtml(inText)}</a></sup>`;
+}
+
+// ---- Bibliography ----
+
+function renderBibliography(): string {
+  if (bibliographySourceIds.size === 0) return "";
+
+  const formatter = getFormatter(citationSettings.citationStandard);
+  const sources = [...bibliographySourceIds]
+    .map((id) => citationReferences[id])
+    .filter((s): s is ReferenceSource => s !== undefined);
+
+  const sorted = formatter.sortBibliography(sources);
+
+  let html = '<section class="bibliography">\n<h2>References</h2>\n<ol>\n';
+  for (const source of sorted) {
+    const entry = formatter.formatBibliography(source);
+    html += `  <li id="bib-${escapeAttr(source.id)}">${entry}</li>\n`;
+  }
+  html += "</ol>\n</section>";
   return html;
 }
 

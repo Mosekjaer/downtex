@@ -21,6 +21,11 @@ import { Toolbar } from "./toolbar/Toolbar";
 import { MathInline } from "./extensions/math-inline";
 import { MathBlock } from "./extensions/math-block";
 import { Footnote } from "./extensions/footnote";
+import { Citation } from "./extensions/citation";
+import { ReferenceDialog } from "./ReferenceDialog";
+import { DocumentSettingsPanel } from "./DocumentSettingsPanel";
+import { useReferences } from "~/hooks/useReferences";
+import type { ReferenceSource } from "~/lib/citation-formatters";
 import { Figure } from "./extensions/figure";
 import { DocumentMention } from "./extensions/document-mention";
 import { SectionReference } from "./extensions/section-reference";
@@ -79,6 +84,8 @@ export function Editor({
   const [showFigurePicker, setShowFigurePicker] = useState(false);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [showFigureRefPicker, setShowFigureRefPicker] = useState(false);
+  const [showReferenceDialog, setShowReferenceDialog] = useState(false);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 
   // Create and initialize Yjs doc once, stable across re-renders
   const yjsDoc = useMemo(() => {
@@ -86,9 +93,22 @@ export function Editor({
     if (initialStateBase64) {
       initializeFromBase64(doc, initialStateBase64);
     }
+    // Ensure shared maps exist for document settings and references
+    doc.getMap("docSettings");
+    doc.getMap("references");
     return doc;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentId]);
+
+  const { references, addReference, deleteReference } = useReferences(yjsDoc);
+
+  const handleReferenceSubmit = useCallback(
+    (source: ReferenceSource) => {
+      addReference(source);
+      editorRef.current?.chain().focus().insertCitation({ sourceId: source.id }).run();
+    },
+    [addReference],
+  );
 
   // Stable action URL for this document — used by both debounced save and unmount save
   const actionUrl = `/workspace/${workspaceId}/${documentId}`;
@@ -183,6 +203,7 @@ export function Editor({
       MathInline,
       MathBlock,
       Footnote,
+      Citation,
       Figure,
       FigureReference,
       DocumentMention,
@@ -261,7 +282,7 @@ export function Editor({
         return doc.body.innerHTML;
       },
     },
-    onUpdate: () => {
+    onUpdate: ({ editor: ed }) => {
       if (!editable) return;
 
       if (debounceTimerRef.current) {
@@ -270,6 +291,20 @@ export function Editor({
 
       debounceTimerRef.current = setTimeout(() => {
         saveState();
+
+        // Orphan reference cleanup (FR-018): remove sources with zero citations
+        const citedIds = new Set<string>();
+        ed.state.doc.descendants((node) => {
+          if (node.type.name === "citation") {
+            citedIds.add(node.attrs.sourceId as string);
+          }
+          return true;
+        });
+        for (const refId of Object.keys(references)) {
+          if (!citedIds.has(refId)) {
+            deleteReference(refId);
+          }
+        }
       }, 2000);
     },
   });
@@ -501,13 +536,35 @@ export function Editor({
   return (
     <div className="flex h-full flex-col">
       {editable && (
-        <Toolbar
-          editor={editor}
-          onInsertImage={() => setShowImagePicker(true)}
-          onInsertFigure={() => setShowFigurePicker(true)}
-          onInsertFigureRef={() => setShowFigureRefPicker(true)}
-          onInsertMention={() => setShowMentionPicker(true)}
-        />
+        <div className="flex items-start border-b border-zinc-200">
+          <div className="flex-1">
+            <Toolbar
+              editor={editor}
+              onInsertImage={() => setShowImagePicker(true)}
+              onInsertFigure={() => setShowFigurePicker(true)}
+              onInsertFigureRef={() => setShowFigureRefPicker(true)}
+              onInsertMention={() => setShowMentionPicker(true)}
+              onInsertReference={() => setShowReferenceDialog(true)}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSettingsPanel(true)}
+            className="m-1 rounded p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-accent-500"
+            title="Document settings"
+            aria-label="Document settings"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M6.5 1.5h3l.4 1.6.9.4 1.5-.7 2.1 2.1-.7 1.5.4.9 1.6.4v3l-1.6.4-.4.9.7 1.5-2.1 2.1-1.5-.7-.9.4-.4 1.6h-3l-.4-1.6-.9-.4-1.5.7-2.1-2.1.7-1.5-.4-.9L1.5 9.5v-3l1.6-.4.4-.9-.7-1.5 2.1-2.1 1.5.7.9-.4z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+              <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          </button>
+        </div>
       )}
       <div className="document-canvas flex-1 overflow-y-auto px-4 py-8">
         <div
@@ -574,6 +631,16 @@ export function Editor({
         onClose={() => setShowMentionPicker(false)}
         onSelect={handleInsertMention}
         documents={documents}
+      />
+      <ReferenceDialog
+        isOpen={showReferenceDialog}
+        onClose={() => setShowReferenceDialog(false)}
+        onSubmit={handleReferenceSubmit}
+      />
+      <DocumentSettingsPanel
+        isOpen={showSettingsPanel}
+        onClose={() => setShowSettingsPanel(false)}
+        ydoc={yjsDoc}
       />
     </div>
   );
