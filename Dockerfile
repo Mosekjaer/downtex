@@ -31,4 +31,7 @@ RUN npm ci --legacy-peer-deps --omit=dev
 
 EXPOSE 3000
 
-CMD ["node", "./build/server/index.js"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+
+CMD ["npx", "react-router-serve", "./build/server/index.js"]

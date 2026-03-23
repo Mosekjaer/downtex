@@ -21,6 +21,7 @@ export default [
   ]),
 
   // API routes
+  route("api/health", "routes/api.health.tsx"),
   route("api/export/:docId", "routes/api.export.$docId.tsx"),
   route("api/github-repos", "routes/api.github-repos.tsx"),
   route("api/github-tree/:repoId", "routes/api.github-tree.$repoId.tsx"),
