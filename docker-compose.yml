@@ -1,8 +1,6 @@
 services:
   app:
     build: .
-    ports:
-      - "3872:3000"
     env_file:
       - .env
     environment:
