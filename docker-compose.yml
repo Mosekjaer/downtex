@@ -2,7 +2,7 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "3872:3000"
     env_file:
       - .env
     environment:
@@ -11,9 +11,14 @@ services:
     depends_on:
       drawio-export:
         condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
   drawio-export:
     image: jgraph/export-server
-    ports:
-      - "9000:8000"
     restart: unless-stopped
